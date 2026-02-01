@@ -1,252 +1,266 @@
-import { BaseRepository } from '@/shared/repository/base-repository';
-import type { DatabaseConnection } from '@/shared/database/types';
-import type { RepairService, RepairRequest, RepairCategory } from './schemas';
+import { PrismaBaseRepository } from '@/shared/repository/base-repository';
+import prisma from '@/lib/prisma';
+import type {
+  Prisma,
+  RepairCategory as PrismaRepairCategory,
+  RepairRequestStatus as PrismaRepairRequestStatus,
+} from '@/app/generated/prisma/client';
+import type {
+  RepairService,
+  RepairRequest,
+  RepairCategory,
+  RepairRequestStatus,
+  RepairStatusHistory,
+} from './schemas';
 
 /**
- * Начальные данные услуг ремонта
+ * Типы из Prisma
  */
-const initialRepairServices: RepairService[] = [
-  // Ноутбуки
-  {
-    id: 'rs-1',
-    name: 'Замена матрицы ноутбука',
-    description: 'Замена поврежденного или неисправного экрана ноутбука',
-    category: 'laptop',
-    estimatedTime: '1-2 дня',
-    priceFrom: 3500,
-    priceTo: 15000,
-    isPopular: true,
-  },
-  {
-    id: 'rs-2',
-    name: 'Замена клавиатуры ноутбука',
-    description: 'Установка новой клавиатуры взамен поврежденной',
-    category: 'laptop',
-    estimatedTime: '1-3 часа',
-    priceFrom: 2000,
-    priceTo: 8000,
-    isPopular: true,
-  },
-  {
-    id: 'rs-3',
-    name: 'Чистка ноутбука от пыли',
-    description: 'Профессиональная чистка системы охлаждения и замена термопасты',
-    category: 'laptop',
-    estimatedTime: '1-2 часа',
-    priceFrom: 1500,
-    priceTo: 3000,
-    isPopular: true,
-  },
-  {
-    id: 'rs-4',
-    name: 'Ремонт материнской платы ноутбука',
-    description: 'Диагностика и ремонт неисправностей материнской платы',
-    category: 'laptop',
-    estimatedTime: '2-5 дней',
-    priceFrom: 3000,
-    priceTo: 12000,
-  },
-  {
-    id: 'rs-5',
-    name: 'Замена батареи ноутбука',
-    description: 'Установка новой оригинальной или совместимой батареи',
-    category: 'laptop',
-    estimatedTime: '30 минут',
-    priceFrom: 500,
-    priceTo: 1500,
-  },
-  // Настольные ПК
-  {
-    id: 'rs-6',
-    name: 'Сборка компьютера',
-    description: 'Профессиональная сборка ПК из комплектующих заказчика',
-    category: 'desktop',
-    estimatedTime: '2-4 часа',
-    priceFrom: 3000,
-    priceTo: 7000,
-    isPopular: true,
-  },
-  {
-    id: 'rs-7',
-    name: 'Диагностика компьютера',
-    description: 'Полная диагностика всех компонентов системного блока',
-    category: 'desktop',
-    estimatedTime: '1 час',
-    priceFrom: 500,
-    priceTo: 1500,
-  },
-  {
-    id: 'rs-8',
-    name: 'Установка/переустановка Windows',
-    description: 'Установка операционной системы с настройкой драйверов',
-    category: 'desktop',
-    estimatedTime: '1-2 часа',
-    priceFrom: 1000,
-    priceTo: 2500,
-  },
-  // Мониторы
-  {
-    id: 'rs-9',
-    name: 'Ремонт монитора',
-    description: 'Диагностика и устранение неисправностей монитора',
-    category: 'monitor',
-    estimatedTime: '1-5 дней',
-    priceFrom: 2000,
-    priceTo: 10000,
-  },
-  {
-    id: 'rs-10',
-    name: 'Замена подсветки монитора',
-    description: 'Замена LED-подсветки или инвертора',
-    category: 'monitor',
-    estimatedTime: '1-2 дня',
-    priceFrom: 2500,
-    priceTo: 6000,
-  },
-  // Восстановление данных
-  {
-    id: 'rs-11',
-    name: 'Восстановление данных с HDD',
-    description: 'Восстановление информации с поврежденного жесткого диска',
-    category: 'data_recovery',
-    estimatedTime: '1-7 дней',
-    priceFrom: 5000,
-    priceTo: 30000,
-    isPopular: true,
-  },
-  {
-    id: 'rs-12',
-    name: 'Восстановление данных с SSD',
-    description: 'Восстановление информации с твердотельного накопителя',
-    category: 'data_recovery',
-    estimatedTime: '1-7 дней',
-    priceFrom: 7000,
-    priceTo: 40000,
-  },
-  // Апгрейд
-  {
-    id: 'rs-13',
-    name: 'Установка SSD',
-    description: 'Установка SSD с переносом системы и данных',
-    category: 'upgrade',
-    estimatedTime: '1-2 часа',
-    priceFrom: 1000,
-    priceTo: 2500,
-    isPopular: true,
-  },
-  {
-    id: 'rs-14',
-    name: 'Увеличение оперативной памяти',
-    description: 'Подбор и установка дополнительной RAM',
-    category: 'upgrade',
-    estimatedTime: '30 минут',
-    priceFrom: 500,
-    priceTo: 1000,
-  },
-];
+type PrismaRepairService = Prisma.RepairServiceGetPayload<object>;
+type PrismaRepairRequest = Prisma.RepairRequestGetPayload<{
+  include: { service: true; user: true };
+}>;
 
 /**
- * Начальные данные заявок на ремонт
+ * Маппинг категорий ремонта Prisma -> App
  */
-const initialRepairRequests: RepairRequest[] = [
-  {
-    id: 'repair-1',
-    requestNumber: 'REP-2024-000123',
-    userId: 'user-1',
-    service: initialRepairServices[0],
-    deviceType: 'Ноутбук',
-    deviceBrand: 'ASUS',
-    deviceModel: 'ROG Strix G15',
-    problemDescription: 'Разбит экран, не отображает изображение',
-    status: 'in_progress',
-    statusHistory: [
-      { status: 'pending', timestamp: '2024-01-25T10:00:00Z' },
-      { status: 'diagnosed', timestamp: '2024-01-25T14:00:00Z', comment: 'Требуется замена матрицы' },
-      { status: 'awaiting_approval', timestamp: '2024-01-25T14:30:00Z', comment: 'Стоимость ремонта: 8500₽' },
-      { status: 'in_progress', timestamp: '2024-01-25T16:00:00Z', comment: 'Матрица заказана' },
-    ],
-    estimatedCost: 8500,
-    createdAt: '2024-01-25T10:00:00Z',
-    updatedAt: '2024-01-25T16:00:00Z',
-  },
-  {
-    id: 'repair-2',
-    requestNumber: 'REP-2024-000122',
-    userId: 'user-1',
-    service: initialRepairServices[2],
-    deviceType: 'Ноутбук',
-    deviceBrand: 'Lenovo',
-    deviceModel: 'ThinkPad X1 Carbon',
-    problemDescription: 'Сильно греется, шумит вентилятор',
-    status: 'completed',
-    statusHistory: [
-      { status: 'pending', timestamp: '2024-01-20T11:00:00Z' },
-      { status: 'diagnosed', timestamp: '2024-01-20T12:00:00Z' },
-      { status: 'in_progress', timestamp: '2024-01-20T12:30:00Z' },
-      { status: 'completed', timestamp: '2024-01-20T14:00:00Z', comment: 'Чистка выполнена, термопаста заменена' },
-    ],
-    estimatedCost: 2000,
-    finalCost: 2000,
-    createdAt: '2024-01-20T11:00:00Z',
-    updatedAt: '2024-01-20T14:00:00Z',
-    completedAt: '2024-01-20T14:00:00Z',
-  },
-];
+const categoryPrismaToApp: Record<PrismaRepairCategory, RepairCategory> = {
+  LAPTOP: 'laptop',
+  DESKTOP: 'desktop',
+  MONITOR: 'monitor',
+  PERIPHERAL: 'peripheral',
+  DATA_RECOVERY: 'data_recovery',
+  UPGRADE: 'upgrade',
+};
+
+const categoryAppToPrisma: Record<RepairCategory, PrismaRepairCategory> = {
+  laptop: 'LAPTOP',
+  desktop: 'DESKTOP',
+  monitor: 'MONITOR',
+  peripheral: 'PERIPHERAL',
+  data_recovery: 'DATA_RECOVERY',
+  upgrade: 'UPGRADE',
+};
 
 /**
- * Репозиторий услуг ремонта
+ * Маппинг статусов заявки Prisma -> App
  */
-export class RepairServiceRepository extends BaseRepository<RepairService> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialRepairServices);
+const statusPrismaToApp: Record<PrismaRepairRequestStatus, RepairRequestStatus> = {
+  PENDING: 'pending',
+  DIAGNOSED: 'diagnosed',
+  AWAITING_APPROVAL: 'awaiting_approval',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+};
+
+const statusAppToPrisma: Record<RepairRequestStatus, PrismaRepairRequestStatus> = {
+  pending: 'PENDING',
+  diagnosed: 'DIAGNOSED',
+  awaiting_approval: 'AWAITING_APPROVAL',
+  in_progress: 'IN_PROGRESS',
+  completed: 'COMPLETED',
+  cancelled: 'CANCELLED',
+};
+
+/**
+ * Преобразовать Prisma RepairService в схему RepairService
+ */
+function mapPrismaRepairService(service: PrismaRepairService | null): RepairService | null {
+  if (!service) return null;
+
+  return {
+    id: service.id,
+    name: service.name,
+    description: service.description,
+    category: categoryPrismaToApp[service.category],
+    estimatedTime: service.estimatedTime,
+    priceFrom: Number(service.priceFrom),
+    priceTo: service.priceTo ? Number(service.priceTo) : undefined,
+    isPopular: service.isPopular,
+  };
+}
+
+function mapPrismaRepairServices(services: PrismaRepairService[]): RepairService[] {
+  return services.map((s) => mapPrismaRepairService(s)!);
+}
+
+/**
+ * Преобразовать Prisma RepairRequest в схему RepairRequest
+ */
+function mapPrismaRepairRequest(request: PrismaRepairRequest | null): RepairRequest | null {
+  if (!request) return null;
+
+  return {
+    id: request.id,
+    requestNumber: request.requestNumber,
+    userId: request.userId,
+    service: mapPrismaRepairService(request.service)!,
+    deviceType: request.deviceType,
+    deviceBrand: request.deviceBrand,
+    deviceModel: request.deviceModel,
+    serialNumber: request.serialNumber ?? undefined,
+    problemDescription: request.problemDescription,
+    status: statusPrismaToApp[request.status],
+    statusHistory: request.statusHistory as RepairStatusHistory[],
+    estimatedCost: request.estimatedCost ? Number(request.estimatedCost) : undefined,
+    finalCost: request.finalCost ? Number(request.finalCost) : undefined,
+    createdAt: request.createdAt.toISOString(),
+    updatedAt: request.updatedAt.toISOString(),
+    completedAt: request.completedAt?.toISOString(),
+  };
+}
+
+function mapPrismaRepairRequests(requests: PrismaRepairRequest[]): RepairRequest[] {
+  return requests.map((r) => mapPrismaRepairRequest(r)!);
+}
+
+/**
+ * Репозиторий услуг ремонта с Prisma
+ */
+export class RepairServiceRepository extends PrismaBaseRepository<
+  RepairService,
+  Prisma.RepairServiceCreateInput,
+  Prisma.RepairServiceUpdateInput
+> {
+  protected modelName = 'repairService' as const;
+
+  /**
+   * Поиск по ID
+   */
+  async findById(id: string): Promise<RepairService | null> {
+    const service = await prisma.repairService.findUnique({
+      where: { id },
+    });
+    return mapPrismaRepairService(service);
+  }
+
+  /**
+   * Получить все услуги
+   */
+  async findAll(): Promise<RepairService[]> {
+    const services = await prisma.repairService.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    return mapPrismaRepairServices(services);
   }
 
   /**
    * Поиск по категории
    */
   async findByCategory(category: RepairCategory): Promise<RepairService[]> {
-    await this.simulateDelay();
-    return this.data.filter((s) => s.category === category);
+    const services = await prisma.repairService.findMany({
+      where: {
+        category: categoryAppToPrisma[category],
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+    return mapPrismaRepairServices(services);
   }
 
   /**
    * Получить популярные услуги
    */
   async findPopular(): Promise<RepairService[]> {
-    await this.simulateDelay();
-    return this.data.filter((s) => s.isPopular);
+    const services = await prisma.repairService.findMany({
+      where: { isPopular: true, isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    return mapPrismaRepairServices(services);
   }
 }
 
 /**
- * Репозиторий заявок на ремонт
+ * Репозиторий заявок на ремонт с Prisma
  */
-export class RepairRequestRepository extends BaseRepository<RepairRequest> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialRepairRequests);
+export class RepairRequestRepository extends PrismaBaseRepository<
+  RepairRequest,
+  Prisma.RepairRequestCreateInput,
+  Prisma.RepairRequestUpdateInput
+> {
+  protected modelName = 'repairRequest' as const;
+
+  private includeRelations = {
+    service: true,
+    user: true,
+  } as const;
+
+  /**
+   * Поиск по ID
+   */
+  async findById(id: string): Promise<RepairRequest | null> {
+    const request = await prisma.repairRequest.findUnique({
+      where: { id },
+      include: this.includeRelations,
+    });
+    return mapPrismaRepairRequest(request as PrismaRepairRequest | null);
   }
 
   /**
    * Поиск заявок пользователя
    */
   async findByUserId(userId: string): Promise<RepairRequest[]> {
-    await this.simulateDelay();
-    return this.data.filter((r) => r.userId === userId);
+    const requests = await prisma.repairRequest.findMany({
+      where: { userId },
+      include: this.includeRelations,
+      orderBy: { createdAt: 'desc' },
+    });
+    return mapPrismaRepairRequests(requests as PrismaRepairRequest[]);
   }
 
   /**
    * Поиск по номеру заявки
    */
   async findByRequestNumber(requestNumber: string): Promise<RepairRequest | null> {
-    await this.simulateDelay();
-    return this.data.find((r) => r.requestNumber === requestNumber) ?? null;
+    const request = await prisma.repairRequest.findUnique({
+      where: { requestNumber },
+      include: this.includeRelations,
+    });
+    return mapPrismaRepairRequest(request as PrismaRepairRequest | null);
+  }
+
+  /**
+   * Обновить статус заявки
+   */
+  async updateStatus(
+    requestId: string,
+    status: RepairRequestStatus,
+    comment?: string
+  ): Promise<RepairRequest | null> {
+    const request = await prisma.repairRequest.findUnique({
+      where: { id: requestId },
+      select: { statusHistory: true },
+    });
+
+    if (!request) return null;
+
+    const statusHistory = request.statusHistory as RepairStatusHistory[];
+    statusHistory.push({
+      status,
+      timestamp: new Date().toISOString(),
+      ...(comment && { comment }),
+    });
+
+    const updated = await prisma.repairRequest.update({
+      where: { id: requestId },
+      data: {
+        status: statusAppToPrisma[status],
+        statusHistory,
+        ...(status === 'completed' && { completedAt: new Date() }),
+      },
+      include: this.includeRelations,
+    });
+
+    return mapPrismaRepairRequest(updated as PrismaRepairRequest);
   }
 
   /**
    * Генерация номера заявки
    */
   generateRequestNumber(): string {
-    return 'REP-2024-' + String(Date.now()).slice(-6);
+    return 'REP-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-6);
   }
 }
 
@@ -254,28 +268,24 @@ export class RepairRequestRepository extends BaseRepository<RepairRequest> {
 let repairServiceRepoInstance: RepairServiceRepository | null = null;
 let repairRequestRepoInstance: RepairRequestRepository | null = null;
 
-export function getRepairServiceRepository(db: DatabaseConnection): RepairServiceRepository {
+export function getRepairServiceRepository(): RepairServiceRepository {
   if (!repairServiceRepoInstance) {
-    repairServiceRepoInstance = new RepairServiceRepository(db);
+    repairServiceRepoInstance = new RepairServiceRepository();
   }
   return repairServiceRepoInstance;
 }
 
-export function getRepairRequestRepository(db: DatabaseConnection): RepairRequestRepository {
+export function getRepairRequestRepository(): RepairRequestRepository {
   if (!repairRequestRepoInstance) {
-    repairRequestRepoInstance = new RepairRequestRepository(db);
+    repairRequestRepoInstance = new RepairRequestRepository();
   }
   return repairRequestRepoInstance;
 }
 
-// Экспорт данных для синхронного использования
-export const repairServices = initialRepairServices;
-export const mockRepairRequests = initialRepairRequests;
-
-export function getRepairServicesByCategory(category: RepairCategory): RepairService[] {
-  return initialRepairServices.filter((s) => s.category === category);
-}
-
-export function getPopularRepairServices(): RepairService[] {
-  return initialRepairServices.filter((s) => s.isPopular);
-}
+// Mock данные реэкспортируются из отдельного файла для клиентских компонентов
+export {
+  repairServices,
+  mockRepairRequests,
+  getRepairServicesByCategory,
+  getPopularRepairServices,
+} from './mocks';

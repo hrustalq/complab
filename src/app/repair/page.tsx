@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RepairServiceCard } from '@/entities/repair/ui/repair-service-card';
-import { repairServices } from '@/entities/repair/model/repository';
+import { repairServices } from '@/entities/repair/model/mocks';
 import { REPAIR_CATEGORY_LABELS, type RepairCategory } from '@/entities/repair/model/schemas';
 
 export const metadata = {

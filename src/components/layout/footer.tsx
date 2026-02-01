@@ -88,7 +88,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/sale"
-                  className="font-medium text-red-500 hover:text-red-600 transition-colors"
+                  className="font-medium text-destructive hover:text-destructive/80 transition-colors"
                 >
                   Распродажа
                 </Link>

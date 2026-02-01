@@ -5,24 +5,30 @@ import { HeroCarousel } from '@/entities/banner/ui/hero-carousel';
 import { PromoBannersGrid } from '@/entities/banner/ui/promo-banner';
 import { ProductGrid } from '@/entities/product/ui/product-grid';
 import { CategoryCard } from '@/entities/category/ui/category-card';
-import { getActiveHeroBanners, getActivePromoBanners } from '@/entities/banner/model/repository';
-import { getProductRepository } from '@/entities/product/model/repository';
-import { getCategoryRepository } from '@/entities/category/model/repository';
-import { getPopularRepairServices } from '@/entities/repair/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
 import { RepairServiceCard } from '@/entities/repair/ui/repair-service-card';
+import { getHeroBanners, getPromoBanners } from '@/entities/banner/api/handlers';
+import { getFeaturedProducts, getNewProducts, getOnSaleProducts } from '@/entities/product/api/handlers';
+import { getCategories } from '@/entities/category/api/handlers';
+import { getPopularServicesAsync } from '@/entities/repair/api/handlers';
 
 export default async function HomePage() {
-  const productRepo = getProductRepository(db);
-  const categoryRepo = getCategoryRepository(db);
-  
-  const heroBanners = getActiveHeroBanners();
-  const promoBanners = getActivePromoBanners();
-  const featuredProducts = await productRepo.findFeatured(8);
-  const newProducts = await productRepo.findNew(4);
-  const saleProducts = await productRepo.findOnSale(4);
-  const categories = await categoryRepo.findTree();
-  const popularRepairs = getPopularRepairServices();
+  const [
+    heroBanners,
+    promoBanners,
+    featuredProducts,
+    newProducts,
+    saleProducts,
+    categories,
+    popularRepairs,
+  ] = await Promise.all([
+    getHeroBanners(),
+    getPromoBanners(),
+    getFeaturedProducts(8),
+    getNewProducts(4),
+    getOnSaleProducts(4),
+    getCategories(),
+    getPopularServicesAsync(),
+  ]);
 
   return (
     <div className="flex flex-col gap-12 pb-12">
@@ -118,7 +124,7 @@ export default async function HomePage() {
       <section className="container">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">
-            <span className="text-emerald-600">Новинки</span>
+            <span className="text-chart-3">Новинки</span>
           </h2>
           <Button variant="ghost" asChild>
             <Link href="/new">
@@ -134,7 +140,7 @@ export default async function HomePage() {
       <section className="container">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">
-            <span className="text-red-500">Распродажа</span>
+            <span className="text-destructive">Распродажа</span>
           </h2>
           <Button variant="ghost" asChild>
             <Link href="/sale">
@@ -182,13 +188,16 @@ export default async function HomePage() {
               Наши специалисты помогут подобрать технику под ваши задачи и бюджет
             </p>
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" variant="secondary" asChild>
+              <Button
+                size="lg"
+                className="bg-white text-foreground hover:bg-white/90"
+                asChild
+              >
                 <Link href="/contacts">Связаться с нами</Link>
               </Button>
               <Button
                 size="lg"
-                variant="outline"
-                className="border-white/30 text-white hover:bg-white/10"
+                className="border-white/40 bg-white/10 text-white hover:bg-white/20"
                 asChild
               >
                 <a href="tel:+78001234567">8 (800) 123-45-67</a>

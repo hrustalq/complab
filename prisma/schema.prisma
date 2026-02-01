@@ -9,3 +9,341 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// =====================================================
+// USER & AUTH
+// =====================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  addresses      Address[]
+  orders         Order[]
+  reviews        Review[]
+  repairRequests RepairRequest[]
+
+  @@map("users")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  fullName   String
+  phone      String
+  city       String
+  street     String
+  building   String
+  apartment  String?
+  postalCode String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("addresses")
+}
+
+// =====================================================
+// CATALOG
+// =====================================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  image       String?
+  parentId    String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Self-referencing for hierarchy
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryHierarchy")
+
+  // Relations
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  description      String
+  shortDescription String
+  price            Decimal  @db.Decimal(12, 2)
+  oldPrice         Decimal? @db.Decimal(12, 2)
+  images           String[] @default([])
+  categoryId       String
+  brand            String
+  sku              String   @unique
+  inStock          Boolean  @default(true)
+  stockQuantity    Int      @default(0)
+  specifications   Json     @default("[]") // Array of {name, value, group?}
+  rating           Decimal  @default(0) @db.Decimal(3, 2)
+  reviewsCount     Int      @default(0)
+  isNew            Boolean  @default(false)
+  isFeatured       Boolean  @default(false)
+  isOnSale         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  reviews    Review[]
+
+  @@index([categoryId])
+  @@index([slug])
+  @@index([brand])
+  @@index([inStock])
+  @@map("products")
+}
+
+// =====================================================
+// ORDERS
+// =====================================================
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  orderNumber       String        @unique
+  userId            String
+  status            OrderStatus   @default(PENDING)
+  statusHistory     Json          @default("[]") // Array of {status, timestamp, comment?}
+  shippingAddressId String
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus @default(PENDING)
+  subtotal          Decimal       @db.Decimal(12, 2)
+  shippingCost      Decimal       @default(0) @db.Decimal(10, 2)
+  discount          Decimal       @default(0) @db.Decimal(10, 2)
+  total             Decimal       @db.Decimal(12, 2)
+  promoCode         String?
+  notes             String?
+  trackingNumber    String?
+  estimatedDelivery DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id])
+  shippingAddress Address     @relation(fields: [shippingAddressId], references: [id])
+  items           OrderItem[]
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(12, 2)
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// =====================================================
+// REVIEWS
+// =====================================================
+
+model Review {
+  id           String   @id @default(cuid())
+  productId    String
+  userId       String
+  userName     String
+  userAvatar   String?
+  rating       Int // 1-5
+  title        String
+  content      String
+  pros         String[] @default([])
+  cons         String[] @default([])
+  isVerified   Boolean  @default(false)
+  helpfulCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
+}
+
+// =====================================================
+// BANNERS
+// =====================================================
+
+enum BannerType {
+  HERO
+  PROMO
+}
+
+model Banner {
+  id              String     @id @default(cuid())
+  type            BannerType @default(PROMO)
+  title           String
+  subtitle        String?
+  description     String?
+  image           String
+  mobileImage     String?
+  link            String
+  buttonText      String?
+  backgroundColor String?
+  textColor       String?
+  isActive        Boolean    @default(true)
+  order           Int        @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+  discountPercent Int?
+  promoCode       String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@map("banners")
+}
+
+// =====================================================
+// REPAIR SERVICES
+// =====================================================
+
+enum RepairCategory {
+  LAPTOP
+  DESKTOP
+  MONITOR
+  PERIPHERAL
+  DATA_RECOVERY
+  UPGRADE
+}
+
+model RepairService {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  category      RepairCategory
+  estimatedTime String
+  priceFrom     Decimal        @db.Decimal(10, 2)
+  priceTo       Decimal?       @db.Decimal(10, 2)
+  isPopular     Boolean        @default(false)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  repairRequests RepairRequest[]
+
+  @@index([category])
+  @@map("repair_services")
+}
+
+enum RepairRequestStatus {
+  PENDING
+  DIAGNOSED
+  AWAITING_APPROVAL
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model RepairRequest {
+  id                 String              @id @default(cuid())
+  requestNumber      String              @unique
+  userId             String
+  serviceId          String
+  deviceType         String
+  deviceBrand        String
+  deviceModel        String
+  serialNumber       String?
+  problemDescription String
+  status             RepairRequestStatus @default(PENDING)
+  statusHistory      Json                @default("[]") // Array of {status, timestamp, comment?}
+  estimatedCost      Decimal?            @db.Decimal(10, 2)
+  finalCost          Decimal?            @db.Decimal(10, 2)
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  // Relations
+  user    User          @relation(fields: [userId], references: [id])
+  service RepairService @relation(fields: [serviceId], references: [id])
+
+  @@index([userId])
+  @@index([requestNumber])
+  @@index([status])
+  @@map("repair_requests")
+}
+
+// =====================================================
+// PROMO CODES
+// =====================================================
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+model PromoCode {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  discount     Decimal      @db.Decimal(10, 2)
+  discountType DiscountType
+  isActive     Boolean      @default(true)
+  usageLimit   Int?
+  usageCount   Int          @default(0)
+  expiresAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("promo_codes")
+}

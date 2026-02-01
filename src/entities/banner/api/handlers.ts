@@ -1,4 +1,3 @@
-import { db } from '@/shared/database/in-memory-connection';
 import {
   getHeroBannerRepository,
   getPromoBannerRepository,
@@ -7,8 +6,8 @@ import {
 } from '../model/repository';
 import type { PromoBanner } from '../model/schemas';
 
-const heroBannerRepo = getHeroBannerRepository(db);
-const promoBannerRepo = getPromoBannerRepository(db);
+const heroBannerRepo = getHeroBannerRepository();
+const promoBannerRepo = getPromoBannerRepository();
 
 /**
  * Получить hero баннеры (async)
@@ -30,7 +29,7 @@ export async function getPromoBanners(): Promise<PromoBanner[]> {
 export async function getBannerById(id: string): Promise<PromoBanner | null> {
   const heroBanner = await heroBannerRepo.findById(id);
   if (heroBanner) return heroBanner;
-  
+
   return promoBannerRepo.findById(id);
 }
 

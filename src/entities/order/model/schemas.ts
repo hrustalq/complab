@@ -31,14 +31,14 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  confirmed: 'bg-blue-100 text-blue-800',
-  processing: 'bg-indigo-100 text-indigo-800',
-  shipped: 'bg-purple-100 text-purple-800',
-  out_for_delivery: 'bg-cyan-100 text-cyan-800',
-  delivered: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  returned: 'bg-gray-100 text-gray-800',
+  pending: 'bg-chart-4/15 text-chart-4',
+  confirmed: 'bg-primary/15 text-primary',
+  processing: 'bg-chart-2/15 text-chart-2',
+  shipped: 'bg-chart-5/15 text-chart-5',
+  out_for_delivery: 'bg-chart-1/15 text-chart-1',
+  delivered: 'bg-chart-3/15 text-chart-3',
+  cancelled: 'bg-destructive/15 text-destructive',
+  returned: 'bg-muted text-muted-foreground',
 };
 
 /**

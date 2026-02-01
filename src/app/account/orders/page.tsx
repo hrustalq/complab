@@ -6,9 +6,8 @@ import { ChevronRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrderCard } from '@/entities/order/ui/order-card';
 import { useUserStore } from '@/entities/user/model/store';
-import { mockUser } from '@/entities/user/model/repository';
-import { mockOrders } from '@/entities/order/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
+import { mockUser } from '@/entities/user/model/mocks';
+import { mockOrders } from '@/entities/order/model/mocks';
 
 export default function OrdersPage() {
   const { isAuthenticated, login } = useUserStore();
@@ -32,7 +31,7 @@ export default function OrdersPage() {
     );
   }
 
-  const orders = mockOrders(db);
+  const orders = mockOrders();
   const activeOrders = orders.filter(
     (o) => !['delivered', 'cancelled', 'returned'].includes(o.status)
   );

@@ -45,8 +45,8 @@ export function OrderStatusTimeline({
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
                   item.status === 'cancelled' || item.status === 'returned'
-                    ? 'bg-red-100 text-red-600'
-                    : 'bg-green-100 text-green-600'
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-chart-3/10 text-chart-3'
                 }`}
               >
                 <Check className="h-4 w-4" />
@@ -83,7 +83,7 @@ export function OrderStatusTimeline({
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
                   isCompleted
-                    ? 'bg-green-100 text-green-600'
+                    ? 'bg-chart-3/10 text-chart-3'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
@@ -98,7 +98,7 @@ export function OrderStatusTimeline({
               {index < statusOrder.length - 1 && (
                 <div
                   className={`h-8 w-0.5 ${
-                    index < currentIndex ? 'bg-green-200' : 'bg-border'
+                    index < currentIndex ? 'bg-chart-3/30' : 'bg-border'
                   }`}
                 />
               )}

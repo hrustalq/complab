@@ -53,7 +53,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
               <div className="relative z-10 flex h-full flex-col justify-center px-8 sm:px-12 lg:px-16">
                 <div className="max-w-xl">
                   {banner.discountPercent && (
-                    <span className="mb-4 inline-block rounded-full bg-red-500 px-4 py-1 text-sm font-semibold text-white">
+                    <span className="mb-4 inline-block rounded-full bg-destructive px-4 py-1 text-sm font-semibold text-destructive-foreground">
                       Скидки до {banner.discountPercent}%
                     </span>
                   )}

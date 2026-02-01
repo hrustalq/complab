@@ -8,18 +8,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ProductGrid } from '@/entities/product/ui/product-grid';
 import { AddToCartButton } from './add-to-cart-button';
-import { getProductRepository } from '@/entities/product/model/repository';
-import { getCategoryRepository } from '@/entities/category/model/repository';
-import { getReviewsByProductId, getReviewStats } from '@/entities/review/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
+import {
+  getProductBySlug,
+  getAllProducts,
+  getRelatedProducts,
+} from '@/entities/product/api/handlers';
+import { getCategoryBySlug, getCategoryBreadcrumbs } from '@/entities/category/api/handlers';
+import { getProductReviews, getProductReviewStats } from '@/entities/review/api/handlers';
 
 interface ProductPageProps {
   params: Promise<{ category: string; product: string }>;
 }
 
 export async function generateStaticParams() {
-  const productRepo = getProductRepository(db);
-  const products = await productRepo.findAll();
+  const products = await getAllProducts();
   return products.map((p) => ({
     category: p.categorySlug,
     product: p.slug,
@@ -28,13 +30,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ProductPageProps) {
   const { product: productSlug } = await params;
-  const productRepo = getProductRepository(db);
-  const product = await productRepo.findBySlug(productSlug);
-  
+  const product = await getProductBySlug(productSlug);
+
   if (!product) {
     return { title: 'Товар не найден' };
   }
-  
+
   return {
     title: product.name,
     description: product.shortDescription,
@@ -43,20 +44,21 @@ export async function generateMetadata({ params }: ProductPageProps) {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { category: categorySlug, product: productSlug } = await params;
-  const productRepo = getProductRepository(db);
-  const categoryRepo = getCategoryRepository(db);
-  
-  const product = await productRepo.findBySlug(productSlug);
-  
+
+  const product = await getProductBySlug(productSlug);
+
   if (!product) {
     notFound();
   }
-  
-  const category = await categoryRepo.findBySlug(categorySlug);
-  const breadcrumbs = category ? await categoryRepo.getBreadcrumbs(category.id) : [];
-  const relatedProducts = await productRepo.findRelated(product);
-  const reviews = getReviewsByProductId(product.id);
-  const reviewStats = getReviewStats(product.id);
+
+  const [category, relatedProducts, reviews, reviewStats] = await Promise.all([
+    getCategoryBySlug(categorySlug),
+    getRelatedProducts(product.id),
+    getProductReviews(product.id),
+    getProductReviewStats(product.id),
+  ]);
+
+  const breadcrumbs = category ? await getCategoryBreadcrumbs(category.id) : [];
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('ru-RU').format(price);
@@ -67,12 +69,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : 0;
 
   // Группируем спецификации
-  const specGroups = product.specifications.reduce((acc, spec) => {
-    const group = spec.group || 'Основные';
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(spec);
-    return acc;
-  }, {} as Record<string, typeof product.specifications>);
+  const specGroups = product.specifications.reduce(
+    (acc, spec) => {
+      const group = spec.group || 'Основные';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(spec);
+      return acc;
+    },
+    {} as Record<string, typeof product.specifications>
+  );
 
   return (
     <div className="container py-8">
@@ -103,14 +108,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="space-y-4">
           <div className="relative aspect-square overflow-hidden rounded-xl border bg-muted/30">
             {product.isNew && (
-              <Badge className="absolute left-4 top-4 z-10 bg-emerald-500">
-                Новинка
-              </Badge>
+              <Badge className="absolute left-4 top-4 z-10 bg-chart-3 text-chart-3-foreground">Новинка</Badge>
             )}
             {product.isOnSale && discount > 0 && (
-              <Badge className="absolute left-4 top-12 z-10 bg-red-500">
-                -{discount}%
-              </Badge>
+              <Badge className="absolute left-4 top-12 z-10" variant="destructive">-{discount}%</Badge>
             )}
             <Image
               src={product.images[0] || '/placeholder-product.jpg'}
@@ -157,7 +158,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   key={i}
                   className={`h-5 w-5 ${
                     i < Math.round(product.rating)
-                      ? 'fill-amber-400 text-amber-400'
+                      ? 'fill-chart-4 text-chart-4'
                       : 'fill-muted text-muted'
                   }`}
                 />
@@ -181,17 +182,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </span>
               )}
               {discount > 0 && (
-                <Badge className="bg-red-500">Экономия {formatPrice(product.oldPrice! - product.price)} ₽</Badge>
+                <Badge variant="destructive">
+                  Экономия {formatPrice(product.oldPrice! - product.price)} ₽
+                </Badge>
               )}
             </div>
 
             <div className="mb-4 flex items-center gap-2">
               <span
                 className={`inline-flex h-2 w-2 rounded-full ${
-                  product.inStock ? 'bg-emerald-500' : 'bg-red-500'
+                  product.inStock ? 'bg-chart-3' : 'bg-destructive'
                 }`}
               />
-              <span className={product.inStock ? 'text-emerald-600' : 'text-red-500'}>
+              <span className={product.inStock ? 'text-chart-3' : 'text-destructive'}>
                 {product.inStock ? `В наличии (${product.stockQuantity} шт.)` : 'Нет в наличии'}
               </span>
             </div>
@@ -199,8 +202,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <div className="flex flex-wrap gap-3">
               <AddToCartButton product={product} />
               <Button variant="outline" size="lg">
-                <Heart className="mr-2 h-5 w-5" />
-                В избранное
+                <Heart className="mr-2 h-5 w-5" />В избранное
               </Button>
               <Button variant="ghost" size="icon" className="h-12 w-12">
                 <Share2 className="h-5 w-5" />
@@ -269,28 +271,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     key={i}
                     className={`h-4 w-4 ${
                       i < Math.round(reviewStats.averageRating)
-                        ? 'fill-amber-400 text-amber-400'
+                        ? 'fill-chart-4 text-chart-4'
                         : 'fill-muted text-muted'
                     }`}
                   />
                 ))}
               </div>
-              <div className="text-sm text-muted-foreground">
-                {reviewStats.totalReviews} отзывов
-              </div>
+              <div className="text-sm text-muted-foreground">{reviewStats.totalReviews} отзывов</div>
             </div>
             <div className="flex-1 space-y-2">
               {[5, 4, 3, 2, 1].map((rating) => (
                 <div key={rating} className="flex items-center gap-2">
                   <span className="w-3 text-sm">{rating}</span>
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  <Star className="h-4 w-4 fill-chart-4 text-chart-4" />
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full bg-amber-400"
+                      className="h-full bg-chart-4"
                       style={{
                         width: `${
                           reviewStats.totalReviews > 0
-                            ? (reviewStats.ratingDistribution[rating as keyof typeof reviewStats.ratingDistribution] /
+                            ? (reviewStats.ratingDistribution[
+                                rating as keyof typeof reviewStats.ratingDistribution
+                              ] /
                                 reviewStats.totalReviews) *
                               100
                             : 0
@@ -299,7 +301,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   </div>
                   <span className="w-6 text-right text-sm text-muted-foreground">
-                    {reviewStats.ratingDistribution[rating as keyof typeof reviewStats.ratingDistribution]}
+                    {
+                      reviewStats.ratingDistribution[
+                        rating as keyof typeof reviewStats.ratingDistribution
+                      ]
+                    }
                   </span>
                 </div>
               ))}
@@ -329,7 +335,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             key={i}
                             className={`h-4 w-4 ${
                               i < review.rating
-                                ? 'fill-amber-400 text-amber-400'
+                                ? 'fill-chart-4 text-chart-4'
                                 : 'fill-muted text-muted'
                             }`}
                           />
@@ -349,7 +355,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <div className="grid gap-4 sm:grid-cols-2">
                     {review.pros && review.pros.length > 0 && (
                       <div>
-                        <span className="mb-2 block text-sm font-medium text-emerald-600">
+                        <span className="mb-2 block text-sm font-medium text-chart-3">
                           Достоинства:
                         </span>
                         <ul className="list-inside list-disc text-sm text-muted-foreground">
@@ -361,7 +367,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     )}
                     {review.cons && review.cons.length > 0 && (
                       <div>
-                        <span className="mb-2 block text-sm font-medium text-red-500">
+                        <span className="mb-2 block text-sm font-medium text-destructive">
                           Недостатки:
                         </span>
                         <ul className="list-inside list-disc text-sm text-muted-foreground">

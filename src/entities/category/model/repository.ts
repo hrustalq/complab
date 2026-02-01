@@ -1,262 +1,135 @@
-import { BaseRepository } from '@/shared/repository/base-repository';
-import type { DatabaseConnection } from '@/shared/database/types';
+import { PrismaBaseRepository } from '@/shared/repository/base-repository';
+import prisma from '@/lib/prisma';
+import type { Prisma } from '@/app/generated/prisma/client';
 import type { Category, CategoryWithChildren, CategoryBreadcrumb } from './schemas';
 
 /**
- * Начальные данные категорий
+ * Тип категории из Prisma
  */
-const initialCategories: Category[] = [
-  {
-    id: '1',
-    name: 'Компьютеры и ноутбуки',
-    slug: 'computers',
-    description: 'Настольные ПК, ноутбуки и моноблоки',
-    icon: 'Monitor',
-    order: 1,
-    isActive: true,
-  },
-  {
-    id: '1-1',
-    name: 'Ноутбуки',
-    slug: 'laptops',
-    parentId: '1',
-    order: 1,
-    isActive: true,
-  },
-  {
-    id: '1-2',
-    name: 'Настольные ПК',
-    slug: 'desktop-pcs',
-    parentId: '1',
-    order: 2,
-    isActive: true,
-  },
-  {
-    id: '1-3',
-    name: 'Моноблоки',
-    slug: 'all-in-one',
-    parentId: '1',
-    order: 3,
-    isActive: true,
-  },
-  {
-    id: '2',
-    name: 'Комплектующие',
-    slug: 'components',
-    description: 'Процессоры, видеокарты, память и накопители',
-    icon: 'Cpu',
-    order: 2,
-    isActive: true,
-  },
-  {
-    id: '2-1',
-    name: 'Процессоры',
-    slug: 'processors',
-    parentId: '2',
-    order: 1,
-    isActive: true,
-  },
-  {
-    id: '2-2',
-    name: 'Видеокарты',
-    slug: 'graphics-cards',
-    parentId: '2',
-    order: 2,
-    isActive: true,
-  },
-  {
-    id: '2-3',
-    name: 'Оперативная память',
-    slug: 'ram',
-    parentId: '2',
-    order: 3,
-    isActive: true,
-  },
-  {
-    id: '2-4',
-    name: 'SSD накопители',
-    slug: 'ssd',
-    parentId: '2',
-    order: 4,
-    isActive: true,
-  },
-  {
-    id: '2-5',
-    name: 'Материнские платы',
-    slug: 'motherboards',
-    parentId: '2',
-    order: 5,
-    isActive: true,
-  },
-  {
-    id: '2-6',
-    name: 'Блоки питания',
-    slug: 'power-supplies',
-    parentId: '2',
-    order: 6,
-    isActive: true,
-  },
-  {
-    id: '2-7',
-    name: 'Корпуса',
-    slug: 'cases',
-    parentId: '2',
-    order: 7,
-    isActive: true,
-  },
-  {
-    id: '2-8',
-    name: 'Системы охлаждения',
-    slug: 'cooling',
-    parentId: '2',
-    order: 8,
-    isActive: true,
-  },
-  {
-    id: '3',
-    name: 'Периферия',
-    slug: 'peripherals',
-    description: 'Мониторы, клавиатуры, мыши и гарнитуры',
-    icon: 'Mouse',
-    order: 3,
-    isActive: true,
-  },
-  {
-    id: '3-1',
-    name: 'Мониторы',
-    slug: 'monitors',
-    parentId: '3',
-    order: 1,
-    isActive: true,
-  },
-  {
-    id: '3-2',
-    name: 'Клавиатуры',
-    slug: 'keyboards',
-    parentId: '3',
-    order: 2,
-    isActive: true,
-  },
-  {
-    id: '3-3',
-    name: 'Мыши',
-    slug: 'mice',
-    parentId: '3',
-    order: 3,
-    isActive: true,
-  },
-  {
-    id: '3-4',
-    name: 'Наушники и гарнитуры',
-    slug: 'headsets',
-    parentId: '3',
-    order: 4,
-    isActive: true,
-  },
-  {
-    id: '3-5',
-    name: 'Веб-камеры',
-    slug: 'webcams',
-    parentId: '3',
-    order: 5,
-    isActive: true,
-  },
-  {
-    id: '4',
-    name: 'Сетевое оборудование',
-    slug: 'networking',
-    description: 'Роутеры, коммутаторы и сетевые карты',
-    icon: 'Wifi',
-    order: 4,
-    isActive: true,
-  },
-  {
-    id: '4-1',
-    name: 'Wi-Fi роутеры',
-    slug: 'routers',
-    parentId: '4',
-    order: 1,
-    isActive: true,
-  },
-  {
-    id: '4-2',
-    name: 'Сетевые карты',
-    slug: 'network-cards',
-    parentId: '4',
-    order: 2,
-    isActive: true,
-  },
-  {
-    id: '5',
-    name: 'Услуги ремонта',
-    slug: 'repair-services',
-    description: 'Профессиональный ремонт компьютерной техники',
-    icon: 'Wrench',
-    order: 5,
-    isActive: true,
-  },
-];
+type PrismaCategory = Prisma.CategoryGetPayload<object>;
+type PrismaCategoryWithChildren = Prisma.CategoryGetPayload<{
+  include: { children: true };
+}>;
 
 /**
- * Репозиторий категорий
+ * Преобразовать Prisma Category в схему Category
  */
-export class CategoryRepository extends BaseRepository<Category> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialCategories);
+function mapPrismaCategory(category: PrismaCategory | null): Category | null {
+  if (!category) return null;
+
+  return {
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    description: category.description ?? undefined,
+    icon: category.icon ?? undefined,
+    image: category.image ?? undefined,
+    parentId: category.parentId ?? undefined,
+    order: category.order,
+    isActive: category.isActive,
+  };
+}
+
+function mapPrismaCategories(categories: PrismaCategory[]): Category[] {
+  return categories.map((c) => mapPrismaCategory(c)!);
+}
+
+/**
+ * Репозиторий категорий с Prisma
+ */
+export class CategoryRepository extends PrismaBaseRepository<
+  Category,
+  Prisma.CategoryCreateInput,
+  Prisma.CategoryUpdateInput
+> {
+  protected modelName = 'category' as const;
+
+  /**
+   * Поиск по ID
+   */
+  async findById(id: string): Promise<Category | null> {
+    const category = await prisma.category.findUnique({
+      where: { id },
+    });
+    return mapPrismaCategory(category);
+  }
+
+  /**
+   * Получить все категории
+   */
+  async findAll(): Promise<Category[]> {
+    const categories = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+    });
+    return mapPrismaCategories(categories);
   }
 
   /**
    * Поиск по slug
    */
   async findBySlug(slug: string): Promise<Category | null> {
-    await this.simulateDelay();
-    return this.data.find((c) => c.slug === slug) ?? null;
+    const category = await prisma.category.findUnique({
+      where: { slug },
+    });
+    return mapPrismaCategory(category);
   }
 
   /**
    * Получить дерево категорий (родительские с детьми)
    */
   async findTree(): Promise<CategoryWithChildren[]> {
-    await this.simulateDelay();
-    const rootCategories = this.data.filter((c) => !c.parentId && c.isActive);
-    
-    return rootCategories
-      .sort((a, b) => a.order - b.order)
-      .map((parent) => ({
-        ...parent,
-        children: this.data
-          .filter((c) => c.parentId === parent.id && c.isActive)
-          .sort((a, b) => a.order - b.order),
-      }));
+    const rootCategories = await prisma.category.findMany({
+      where: { parentId: null, isActive: true },
+      include: {
+        children: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    return rootCategories.map((parent: PrismaCategoryWithChildren) => ({
+      ...mapPrismaCategory(parent)!,
+      children: mapPrismaCategories(parent.children),
+    }));
   }
 
   /**
    * Получить дочерние категории
    */
   async findChildren(parentId: string): Promise<Category[]> {
-    await this.simulateDelay();
-    return this.data
-      .filter((c) => c.parentId === parentId && c.isActive)
-      .sort((a, b) => a.order - b.order);
+    const children = await prisma.category.findMany({
+      where: { parentId, isActive: true },
+      orderBy: { order: 'asc' },
+    });
+    return mapPrismaCategories(children);
   }
 
   /**
    * Получить хлебные крошки для категории
    */
   async getBreadcrumbs(categoryId: string): Promise<CategoryBreadcrumb[]> {
-    await this.simulateDelay();
     const breadcrumbs: CategoryBreadcrumb[] = [];
-    let current = this.data.find((c) => c.id === categoryId);
+    let currentId: string | null = categoryId;
 
-    while (current) {
+    while (currentId) {
+      const found: { id: string; name: string; slug: string; parentId: string | null } | null =
+        await prisma.category.findUnique({
+          where: { id: currentId },
+          select: { id: true, name: true, slug: true, parentId: true },
+        });
+
+      if (!found) break;
+
       breadcrumbs.unshift({
-        id: current.id,
-        name: current.name,
-        slug: current.slug,
+        id: found.id,
+        name: found.name,
+        slug: found.slug,
       });
-      current = current.parentId
-        ? this.data.find((c) => c.id === current!.parentId)
-        : undefined;
+
+      currentId = found.parentId;
     }
 
     return breadcrumbs;
@@ -266,19 +139,20 @@ export class CategoryRepository extends BaseRepository<Category> {
    * Получить корневые категории
    */
   async findRootCategories(): Promise<Category[]> {
-    await this.simulateDelay();
-    return this.data
-      .filter((c) => !c.parentId && c.isActive)
-      .sort((a, b) => a.order - b.order);
+    const categories = await prisma.category.findMany({
+      where: { parentId: null, isActive: true },
+      orderBy: { order: 'asc' },
+    });
+    return mapPrismaCategories(categories);
   }
 }
 
 // Singleton instance
 let categoryRepositoryInstance: CategoryRepository | null = null;
 
-export function getCategoryRepository(db: DatabaseConnection): CategoryRepository {
+export function getCategoryRepository(): CategoryRepository {
   if (!categoryRepositoryInstance) {
-    categoryRepositoryInstance = new CategoryRepository(db);
+    categoryRepositoryInstance = new CategoryRepository();
   }
   return categoryRepositoryInstance;
 }

@@ -8,17 +8,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUserStore } from '@/entities/user/model/store';
-import { mockUser } from '@/entities/user/model/repository';
-import { mockRepairRequests } from '@/entities/repair/model/repository';
+import { mockUser } from '@/entities/user/model/mocks';
+import { mockRepairRequests } from '@/entities/repair/model/mocks';
 import { REPAIR_STATUS_LABELS } from '@/entities/repair/model/schemas';
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  diagnosed: 'bg-blue-100 text-blue-800',
-  awaiting_approval: 'bg-orange-100 text-orange-800',
-  in_progress: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-gray-100 text-gray-800',
+  pending: 'bg-chart-4/15 text-chart-4',
+  diagnosed: 'bg-primary/15 text-primary',
+  awaiting_approval: 'bg-chart-4/15 text-chart-4',
+  in_progress: 'bg-chart-2/15 text-chart-2',
+  completed: 'bg-chart-3/15 text-chart-3',
+  cancelled: 'bg-muted text-muted-foreground',
 };
 
 export default function RepairsPage() {

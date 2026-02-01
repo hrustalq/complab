@@ -1,4 +1,4 @@
-import { db } from '@/shared/database/in-memory-connection';
+import prisma from '@/lib/prisma';
 import {
   getReviewRepository,
   reviews,
@@ -13,7 +13,7 @@ import {
   type ReviewListResponse,
 } from '../model/schemas';
 
-const reviewRepo = getReviewRepository(db);
+const reviewRepo = getReviewRepository();
 
 /**
  * Получить отзывы товара (async)
@@ -84,19 +84,40 @@ export async function addReview(
 
   const { productId, rating, title, content, pros, cons } = validatedParams.data;
 
-  return reviewRepo.create({
-    productId,
-    userId,
-    userName,
-    rating,
-    title,
-    content,
-    pros,
-    cons,
-    isVerified: false,
-    helpfulCount: 0,
-    createdAt: new Date().toISOString(),
+  // Create using Prisma directly for proper typing
+  const newReview = await prisma.review.create({
+    data: {
+      product: { connect: { id: productId } },
+      user: { connect: { id: userId } },
+      userName,
+      rating,
+      title,
+      content,
+      pros: pros ?? [],
+      cons: cons ?? [],
+      isVerified: false,
+      helpfulCount: 0,
+    },
   });
+
+  // Update product stats
+  await reviewRepo.updateProductStats(productId);
+
+  return {
+    id: newReview.id,
+    productId: newReview.productId,
+    userId: newReview.userId,
+    userName: newReview.userName,
+    userAvatar: newReview.userAvatar ?? undefined,
+    rating: newReview.rating,
+    title: newReview.title,
+    content: newReview.content,
+    pros: newReview.pros,
+    cons: newReview.cons,
+    isVerified: newReview.isVerified,
+    helpfulCount: newReview.helpfulCount,
+    createdAt: newReview.createdAt.toISOString(),
+  };
 }
 
 /**

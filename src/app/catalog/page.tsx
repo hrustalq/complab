@@ -2,9 +2,8 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { CategoryCard } from '@/entities/category/ui/category-card';
 import { ProductGrid } from '@/entities/product/ui/product-grid';
-import { getCategoryRepository } from '@/entities/category/model/repository';
-import { getProductRepository } from '@/entities/product/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
+import { getCategories } from '@/entities/category/api/handlers';
+import { getAllProducts, searchProducts } from '@/entities/product/api/handlers';
 
 export const metadata = {
   title: 'Каталог товаров',
@@ -17,25 +16,20 @@ interface CatalogPageProps {
 
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const params = await searchParams;
-  const categoryRepo = getCategoryRepository(db);
-  const productRepo = getProductRepository(db);
-  
-  const categories = await categoryRepo.findTree();
-  const allProducts = await productRepo.findAll();
-  
+
+  const [categories, allProducts] = await Promise.all([
+    getCategories(),
+    getAllProducts(),
+  ]);
+
   // Фильтрация товаров
   let filteredProducts = [...allProducts];
-  
+
   if (params.search) {
-    const searchLower = String(params.search).toLowerCase();
-    filteredProducts = filteredProducts.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.shortDescription.toLowerCase().includes(searchLower) ||
-        p.brand.toLowerCase().includes(searchLower)
-    );
+    const searchQuery = String(params.search);
+    filteredProducts = await searchProducts({ query: searchQuery, limit: 100 });
   }
-  
+
   if (params.featured === 'true') {
     filteredProducts = filteredProducts.filter((p) => p.isFeatured);
   }

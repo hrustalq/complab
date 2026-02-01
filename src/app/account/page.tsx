@@ -15,10 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUserStore } from '@/entities/user/model/store';
-import { mockUser, mockAddresses } from '@/entities/user/model/repository';
-import { mockOrders } from '@/entities/order/model/repository';
-import { mockRepairRequests } from '@/entities/repair/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
+import { mockUser, mockAddresses } from '@/entities/user/model/mocks';
+import { mockOrders } from '@/entities/order/model/mocks';
+import { mockRepairRequests } from '@/entities/repair/model/mocks';
 import { OrderCard } from '@/entities/order/ui/order-card';
 
 export default function AccountPage() {
@@ -43,7 +42,7 @@ export default function AccountPage() {
     );
   }
 
-  const orders = mockOrders(db);
+  const orders = mockOrders();
   const recentOrders = orders.slice(0, 2);
   const activeRepairs = mockRepairRequests.filter(
     (r) => r.status !== 'completed' && r.status !== 'cancelled'
@@ -136,10 +135,10 @@ export default function AccountPage() {
         <div className="space-y-6 lg:col-span-3">
           {/* Active Repairs Alert */}
           {activeRepairs.length > 0 && (
-            <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
+            <Card className="border-chart-4/30 bg-chart-4/10">
               <CardContent className="flex items-center justify-between py-4">
                 <div className="flex items-center gap-3">
-                  <Wrench className="h-5 w-5 text-amber-600" />
+                  <Wrench className="h-5 w-5 text-chart-4" />
                   <div>
                     <p className="font-medium">
                       У вас {activeRepairs.length} активных заявок на ремонт

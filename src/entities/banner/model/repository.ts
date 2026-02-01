@@ -1,11 +1,138 @@
-import { BaseRepository } from '@/shared/repository/base-repository';
-import type { DatabaseConnection } from '@/shared/database/types';
+import { PrismaBaseRepository } from '@/shared/repository/base-repository';
+import prisma from '@/lib/prisma';
+import type { Prisma, BannerType } from '@/app/generated/prisma/client';
 import type { PromoBanner } from './schemas';
 
 /**
- * Начальные данные hero баннеров
+ * Тип баннера из Prisma
  */
-const initialHeroBanners: PromoBanner[] = [
+type PrismaBanner = Prisma.BannerGetPayload<object>;
+
+/**
+ * Преобразовать Prisma Banner в схему PromoBanner
+ */
+function mapPrismaBanner(banner: PrismaBanner | null): PromoBanner | null {
+  if (!banner) return null;
+
+  return {
+    id: banner.id,
+    title: banner.title,
+    subtitle: banner.subtitle ?? undefined,
+    description: banner.description ?? undefined,
+    image: banner.image,
+    mobileImage: banner.mobileImage ?? undefined,
+    link: banner.link,
+    buttonText: banner.buttonText ?? undefined,
+    backgroundColor: banner.backgroundColor ?? undefined,
+    textColor: banner.textColor ?? undefined,
+    isActive: banner.isActive,
+    order: banner.order,
+    startDate: banner.startDate?.toISOString(),
+    endDate: banner.endDate?.toISOString(),
+    discountPercent: banner.discountPercent ?? undefined,
+    promoCode: banner.promoCode ?? undefined,
+  };
+}
+
+function mapPrismaBanners(banners: PrismaBanner[]): PromoBanner[] {
+  return banners.map((b) => mapPrismaBanner(b)!);
+}
+
+/**
+ * Базовый репозиторий баннеров
+ */
+abstract class BaseBannerRepository extends PrismaBaseRepository<
+  PromoBanner,
+  Prisma.BannerCreateInput,
+  Prisma.BannerUpdateInput
+> {
+  protected modelName = 'banner' as const;
+  protected abstract bannerType: BannerType;
+
+  /**
+   * Получить активные баннеры
+   */
+  async findActive(): Promise<PromoBanner[]> {
+    const now = new Date();
+    const banners = await prisma.banner.findMany({
+      where: {
+        type: this.bannerType,
+        isActive: true,
+        OR: [
+          { startDate: null },
+          { startDate: { lte: now } },
+        ],
+        AND: [
+          {
+            OR: [
+              { endDate: null },
+              { endDate: { gte: now } },
+            ],
+          },
+        ],
+      },
+      orderBy: { order: 'asc' },
+    });
+    return mapPrismaBanners(banners);
+  }
+
+  /**
+   * Получить все баннеры данного типа
+   */
+  async findAll(): Promise<PromoBanner[]> {
+    const banners = await prisma.banner.findMany({
+      where: { type: this.bannerType },
+      orderBy: { order: 'asc' },
+    });
+    return mapPrismaBanners(banners);
+  }
+
+  /**
+   * Поиск по ID
+   */
+  async findById(id: string): Promise<PromoBanner | null> {
+    const banner = await prisma.banner.findUnique({
+      where: { id },
+    });
+    if (banner?.type !== this.bannerType) return null;
+    return mapPrismaBanner(banner);
+  }
+}
+
+/**
+ * Репозиторий hero баннеров
+ */
+export class HeroBannerRepository extends BaseBannerRepository {
+  protected bannerType: BannerType = 'HERO';
+}
+
+/**
+ * Репозиторий промо баннеров
+ */
+export class PromoBannerRepository extends BaseBannerRepository {
+  protected bannerType: BannerType = 'PROMO';
+}
+
+// Singleton instances
+let heroBannerRepoInstance: HeroBannerRepository | null = null;
+let promoBannerRepoInstance: PromoBannerRepository | null = null;
+
+export function getHeroBannerRepository(): HeroBannerRepository {
+  if (!heroBannerRepoInstance) {
+    heroBannerRepoInstance = new HeroBannerRepository();
+  }
+  return heroBannerRepoInstance;
+}
+
+export function getPromoBannerRepository(): PromoBannerRepository {
+  if (!promoBannerRepoInstance) {
+    promoBannerRepoInstance = new PromoBannerRepository();
+  }
+  return promoBannerRepoInstance;
+}
+
+// Экспорт данных для синхронного использования (legacy)
+export const heroBanners: PromoBanner[] = [
   {
     id: 'banner-1',
     title: 'Зимняя распродажа',
@@ -48,10 +175,7 @@ const initialHeroBanners: PromoBanner[] = [
   },
 ];
 
-/**
- * Начальные данные промо баннеров
- */
-const initialPromoBanners: PromoBanner[] = [
+export const promoBanners: PromoBanner[] = [
   {
     id: 'promo-1',
     title: 'Сборка ПК под ключ',
@@ -84,70 +208,10 @@ const initialPromoBanners: PromoBanner[] = [
   },
 ];
 
-/**
- * Репозиторий hero баннеров
- */
-export class HeroBannerRepository extends BaseRepository<PromoBanner> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialHeroBanners);
-  }
-
-  /**
-   * Получить активные баннеры
-   */
-  async findActive(): Promise<PromoBanner[]> {
-    await this.simulateDelay(30);
-    return this.data
-      .filter((b) => b.isActive)
-      .sort((a, b) => a.order - b.order);
-  }
-}
-
-/**
- * Репозиторий промо баннеров
- */
-export class PromoBannerRepository extends BaseRepository<PromoBanner> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialPromoBanners);
-  }
-
-  /**
-   * Получить активные баннеры
-   */
-  async findActive(): Promise<PromoBanner[]> {
-    await this.simulateDelay(30);
-    return this.data
-      .filter((b) => b.isActive)
-      .sort((a, b) => a.order - b.order);
-  }
-}
-
-// Singleton instances
-let heroBannerRepoInstance: HeroBannerRepository | null = null;
-let promoBannerRepoInstance: PromoBannerRepository | null = null;
-
-export function getHeroBannerRepository(db: DatabaseConnection): HeroBannerRepository {
-  if (!heroBannerRepoInstance) {
-    heroBannerRepoInstance = new HeroBannerRepository(db);
-  }
-  return heroBannerRepoInstance;
-}
-
-export function getPromoBannerRepository(db: DatabaseConnection): PromoBannerRepository {
-  if (!promoBannerRepoInstance) {
-    promoBannerRepoInstance = new PromoBannerRepository(db);
-  }
-  return promoBannerRepoInstance;
-}
-
-// Экспорт данных для синхронного использования (legacy)
-export const heroBanners = initialHeroBanners;
-export const promoBanners = initialPromoBanners;
-
 export function getActiveHeroBanners(): PromoBanner[] {
-  return initialHeroBanners.filter((b) => b.isActive).sort((a, b) => a.order - b.order);
+  return heroBanners.filter((b) => b.isActive).sort((a, b) => a.order - b.order);
 }
 
 export function getActivePromoBanners(): PromoBanner[] {
-  return initialPromoBanners.filter((b) => b.isActive).sort((a, b) => a.order - b.order);
+  return promoBanners.filter((b) => b.isActive).sort((a, b) => a.order - b.order);
 }

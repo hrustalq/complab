@@ -1,286 +1,237 @@
-# 🗃️ Repository Pattern
+# 🗃️ Repository Pattern с Prisma
 
-## Обзор
+## Архитектура
 
-Проект использует паттерн **Repository** для абстракции доступа к данным. Это позволяет:
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Pages / Components                          │
+├─────────────────────────────────────────────────────────────────────┤
+│  Server Components              │  Client Components                │
+│  ↓                              │  ↓                                │
+│  handlers                       │  fetch('/api/...')                │
+└─────────────────────────────────┴───────────────────────────────────┘
+                    ↓                               ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                          API Routes                                  │
+│                   /app/api/[entity]/route.ts                        │
+│                              ↓                                       │
+│                          handlers                                    │
+│               entities/[entity]/api/handlers.ts                     │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Repositories                                 │
+│             entities/[entity]/model/repository.ts                   │
+│                              ↓                                       │
+│                        Prisma Client                                │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-- Легко менять источник данных (in-memory → PostgreSQL → MongoDB)
-- Тестировать бизнес-логику независимо от БД
-- Централизовать логику запросов
-- Переиспользовать общие операции
+## Ключевые правила
+
+1. **Server Components** → вызывают `handlers` напрямую
+2. **Client Components** → вызывают API routes через `fetch()`
+3. **API Routes** → вызывают `handlers`
+4. **Handlers** → вызывают `repositories`
+5. **Repositories** → работают с Prisma
+
+## API Routes
+
+### Структура
+
+```
+src/app/api/
+├── products/
+│   ├── route.ts                    # GET /api/products
+│   ├── [id]/
+│   │   └── route.ts                # GET /api/products/:id
+│   ├── slug/
+│   │   └── [slug]/
+│   │       └── route.ts            # GET /api/products/slug/:slug
+│   └── category/
+│       └── [slug]/
+│           └── route.ts            # GET /api/products/category/:slug
+├── categories/
+│   ├── route.ts                    # GET /api/categories
+│   └── [slug]/
+│       └── route.ts                # GET /api/categories/:slug
+├── orders/
+│   ├── route.ts                    # GET/POST /api/orders
+│   └── [id]/
+│       └── route.ts                # GET/PATCH /api/orders/:id
+├── reviews/
+│   ├── route.ts                    # GET/POST /api/reviews
+│   └── [id]/
+│       └── helpful/
+│           └── route.ts            # POST /api/reviews/:id/helpful
+├── repair/
+│   ├── services/
+│   │   ├── route.ts                # GET /api/repair/services
+│   │   └── [id]/
+│   │       └── route.ts            # GET /api/repair/services/:id
+│   └── requests/
+│       ├── route.ts                # GET/POST /api/repair/requests
+│       └── [id]/
+│           └── route.ts            # GET /api/repair/requests/:id
+├── banners/
+│   └── route.ts                    # GET /api/banners
+└── promo/
+    └── validate/
+        └── route.ts                # POST /api/promo/validate
+```
+
+### Пример API Route
+
+```typescript
+// src/app/api/products/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getProducts,
+  getAllProducts,
+  getFeaturedProducts,
+} from '@/entities/product/api/handlers';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+
+    // Featured products
+    if (searchParams.get('featured') === 'true') {
+      const limit = searchParams.get('limit');
+      const products = await getFeaturedProducts(limit ? parseInt(limit) : undefined);
+      return NextResponse.json({ products });
+    }
+
+    // All products
+    if (searchParams.get('all') === 'true') {
+      const products = await getAllProducts();
+      return NextResponse.json({ products });
+    }
+
+    // Products with filters/pagination
+    const result = await getProducts(Object.fromEntries(searchParams));
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch products' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### HTTP Response Codes
+
+- `200` - Success (GET, PUT, PATCH)
+- `201` - Created (POST)
+- `204` - No Content (DELETE)
+- `400` - Validation Error
+- `404` - Not Found
+- `500` - Server Error
+
+## Использование в компонентах
+
+### Server Components (прямой вызов handlers)
+
+```tsx
+// src/app/page.tsx
+import { getFeaturedProducts, getNewProducts } from '@/entities/product/api/handlers';
+import { getCategories } from '@/entities/category/api/handlers';
+
+export default async function HomePage() {
+  const [featuredProducts, newProducts, categories] = await Promise.all([
+    getFeaturedProducts(8),
+    getNewProducts(4),
+    getCategories(),
+  ]);
+
+  return (
+    <div>
+      <ProductGrid products={featuredProducts} />
+    </div>
+  );
+}
+```
+
+### Client Components (fetch API routes)
+
+```tsx
+// src/app/cart/page.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export default function CartPage() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      for (const item of cartItems) {
+        const res = await fetch(`/api/products/${item.productId}`);
+        if (res.ok) {
+          const product = await res.json();
+          // ...
+        }
+      }
+    };
+    loadProducts();
+  }, [cartItems]);
+}
+```
+
+### Пример загрузки категорий в Header
+
+```tsx
+// src/components/layout/header.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export function Header() {
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/categories?tree=true')
+      .then((res) => res.json())
+      .then((data) => setCategories(data.categories || []))
+      .catch(console.error);
+  }, []);
+
+  return <nav>{/* ... */}</nav>;
+}
+```
+
+## Prisma Singleton
+
+```typescript
+// src/lib/prisma.ts
+import { PrismaClient } from '@/app/generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+});
+
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
+export default prisma;
+```
 
 ## Базовый класс репозитория
 
 ```typescript
 // shared/repository/base-repository.ts
-
-export abstract class BaseRepository<T extends BaseEntity> implements Repository<T> {
-  protected data: T[];
-  protected db: DatabaseConnection;
-
-  constructor(db: DatabaseConnection, initialData: T[] = []) {
-    this.db = db;
-    this.data = [...initialData];
-  }
-
-  // CRUD операции
-  async findById(id: string): Promise<T | null>;
-  async findAll(): Promise<T[]>;
-  async findMany(filter: Partial<T>): Promise<T[]>;
-  async create(data: Omit<T, 'id'>): Promise<T>;
-  async update(id: string, data: Partial<T>): Promise<T | null>;
-  async delete(id: string): Promise<boolean>;
-
-  // Дополнительные методы
-  async count(filter?: Partial<T>): Promise<number>;
-  async findWithPagination(...): Promise<PaginatedResult<T>>;
-  async findByIds(ids: string[]): Promise<T[]>;
-  async exists(id: string): Promise<boolean>;
-}
-```
-
-## Создание репозитория для Entity
-
-### 1. Наследование от BaseRepository
-
-```typescript
-import { BaseRepository } from '@/shared/repository/base-repository';
-import type { DatabaseConnection } from '@/shared/database/types';
-import type { Product } from './schemas';
-
-export class ProductRepository extends BaseRepository<Product> {
-  constructor(db: DatabaseConnection) {
-    super(db, initialProducts); // Передаём начальные данные
-  }
-}
-```
-
-### 2. Добавление специфичных методов
-
-```typescript
-export class ProductRepository extends BaseRepository<Product> {
-  // ...
-
-  /**
-   * Поиск по slug (уникальное поле)
-   */
-  async findBySlug(slug: string): Promise<Product | null> {
-    await this.simulateDelay();
-    return this.data.find((p) => p.slug === slug) ?? null;
-  }
-
-  /**
-   * Фильтрация по категории
-   */
-  async findByCategory(categorySlug: string): Promise<Product[]> {
-    await this.simulateDelay();
-    return this.data.filter((p) => p.categorySlug === categorySlug);
-  }
-
-  /**
-   * Сложный поиск с фильтрами
-   */
-  async findWithFilters(
-    filter: ProductFilter,
-    pagination: { page: number; limit: number },
-    sort?: SortOptions<Product>
-  ): Promise<PaginatedResult<Product>> {
-    await this.simulateDelay();
-
-    let result = [...this.data];
-
-    // Применяем фильтры
-    if (filter.categorySlug) {
-      result = result.filter((p) => p.categorySlug === filter.categorySlug);
-    }
-    if (filter.priceMin !== undefined) {
-      result = result.filter((p) => p.price >= filter.priceMin!);
-    }
-    // ... другие фильтры
-
-    // Сортировка
-    if (sort) {
-      result.sort((a, b) => {
-        // ... логика сортировки
-      });
-    }
-
-    // Пагинация
-    const total = result.length;
-    const startIndex = (pagination.page - 1) * pagination.limit;
-    const items = result.slice(startIndex, startIndex + pagination.limit);
-
-    return {
-      items,
-      total,
-      page: pagination.page,
-      limit: pagination.limit,
-      totalPages: Math.ceil(total / pagination.limit),
-    };
-  }
-}
-```
-
-### 3. Singleton Factory
-
-```typescript
-let productRepositoryInstance: ProductRepository | null = null;
-
-export function getProductRepository(db: DatabaseConnection): ProductRepository {
-  if (!productRepositoryInstance) {
-    productRepositoryInstance = new ProductRepository(db);
-  }
-  return productRepositoryInstance;
-}
-```
-
-## Использование в API handlers
-
-```typescript
-// api/handlers.ts
-import { db } from '@/shared/database/in-memory-connection';
-import { getProductRepository } from '../model/repository';
-
-const productRepo = getProductRepository(db);
-
-export async function getProducts() {
-  return productRepo.findAll();
-}
-
-export async function getProductById(id: string) {
-  return productRepo.findById(id);
-}
-```
-
-## Database Connection
-
-Используем Prisma singleton:
-
-```typescript
-// src/lib/prisma.ts
-import { PrismaClient } from '@/app/generated/prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
-
-export default prisma;
-```
-
-**Почему singleton:**
-- Предотвращает создание множества подключений в dev mode (hot reload)
-- Единая точка доступа к БД
-- Автоматическое переиспользование connection pool
-
-## Prisma Integration
-
-Проект использует Prisma singleton для работы с базой данных:
-
-```typescript
-// src/lib/prisma.ts
-import { PrismaClient } from '@/app/generated/prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
-
-export default prisma;
-```
-
-### Репозиторий с Prisma
-
-```typescript
-// entities/product/model/repository.ts
 import prisma from '@/lib/prisma';
-import type { Product } from './schemas';
+import type { PrismaClient } from '@/app/generated/prisma/client';
 
-export class ProductRepository {
-  async findById(id: string): Promise<Product | null> {
-    return prisma.product.findUnique({ where: { id } });
-  }
-
-  async findAll(): Promise<Product[]> {
-    return prisma.product.findMany();
-  }
-
-  async findBySlug(slug: string): Promise<Product | null> {
-    return prisma.product.findUnique({ where: { slug } });
-  }
-
-  async findByCategory(categorySlug: string): Promise<Product[]> {
-    return prisma.product.findMany({
-      where: { category: { slug: categorySlug } },
-      include: { category: true },
-    });
-  }
-
-  async findWithPagination(
-    filter: Prisma.ProductWhereInput,
-    pagination: { page: number; limit: number },
-    orderBy?: Prisma.ProductOrderByWithRelationInput
-  ) {
-    const [items, total] = await Promise.all([
-      prisma.product.findMany({
-        where: filter,
-        skip: (pagination.page - 1) * pagination.limit,
-        take: pagination.limit,
-        orderBy,
-      }),
-      prisma.product.count({ where: filter }),
-    ]);
-
-    return {
-      items,
-      total,
-      page: pagination.page,
-      limit: pagination.limit,
-      totalPages: Math.ceil(total / pagination.limit),
-    };
-  }
-
-  async create(data: Prisma.ProductCreateInput): Promise<Product> {
-    return prisma.product.create({ data });
-  }
-
-  async update(id: string, data: Prisma.ProductUpdateInput): Promise<Product> {
-    return prisma.product.update({ where: { id }, data });
-  }
-
-  async delete(id: string): Promise<boolean> {
-    await prisma.product.delete({ where: { id } });
-    return true;
-  }
-}
-
-// Singleton
-let instance: ProductRepository | null = null;
-
-export function getProductRepository(): ProductRepository {
-  if (!instance) {
-    instance = new ProductRepository();
-  }
-  return instance;
-}
-```
-
-### BaseRepository с Prisma
-
-```typescript
-// shared/repository/base-repository.ts
-import prisma from '@/lib/prisma';
-import type { PrismaClient } from '@prisma/client';
-
-export abstract class BaseRepository<T, CreateInput, UpdateInput> {
+export abstract class PrismaBaseRepository<T, CreateInput, UpdateInput> {
   protected prisma: PrismaClient;
   protected abstract modelName: string;
 
@@ -289,7 +240,7 @@ export abstract class BaseRepository<T, CreateInput, UpdateInput> {
   }
 
   protected get model() {
-    return (this.prisma as any)[this.modelName];
+    return (this.prisma as Record<string, unknown>)[this.modelName];
   }
 
   async findById(id: string): Promise<T | null> {
@@ -304,7 +255,7 @@ export abstract class BaseRepository<T, CreateInput, UpdateInput> {
     return this.model.create({ data });
   }
 
-  async update(id: string, data: UpdateInput): Promise<T> {
+  async update(id: string, data: UpdateInput): Promise<T | null> {
     return this.model.update({ where: { id }, data });
   }
 
@@ -315,39 +266,104 @@ export abstract class BaseRepository<T, CreateInput, UpdateInput> {
 }
 ```
 
-## Типы данных
+## Handlers с React cache
 
 ```typescript
-// shared/database/types.ts
+// entities/product/api/handlers.ts
+import { cache } from 'react';
+import 'server-only';
+import { getProductRepository } from '../model/repository';
 
-interface Repository<T, ID = string> {
-  findById(id: ID): Promise<T | null>;
-  findAll(): Promise<T[]>;
-  findMany(filter: Partial<T>): Promise<T[]>;
-  create(data: Omit<T, 'id'>): Promise<T>;
-  update(id: ID, data: Partial<T>): Promise<T | null>;
-  delete(id: ID): Promise<boolean>;
+const productRepo = getProductRepository();
+
+export const getProducts = cache(async () => {
+  return productRepo.findAll();
+});
+
+export const getProductById = cache(async (id: string) => {
+  return productRepo.findById(id);
+});
+
+export const getFeaturedProducts = cache(async (limit?: number) => {
+  return productRepo.findFeatured(limit);
+});
+```
+
+## Мутации с инвалидацией кэша
+
+```typescript
+// entities/product/api/handlers.ts
+'use server';
+
+import { revalidateTag, revalidatePath } from 'next/cache';
+
+export async function updateProduct(id: string, data: ProductUpdateInput) {
+  const product = await productRepo.update(id, data);
+
+  revalidateTag(`product-${id}`);
+  revalidatePath('/catalog');
+
+  return product;
 }
+```
 
-interface PaginationOptions {
-  page: number;
-  limit: number;
-}
+## Команды Prisma
 
-interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+```bash
+# Генерация клиента
+npx prisma generate
 
-interface SortOptions<T> {
-  field: keyof T;
-  direction: 'asc' | 'desc';
-}
+# Применение миграций
+npx prisma migrate dev
 
-interface BaseEntity {
-  id: string;
+# Просмотр БД
+npx prisma studio
+
+# Сброс БД
+npx prisma migrate reset
+
+# Заполнение данными
+npm run db:seed
+```
+
+## Best Practices
+
+### ✅ DO
+
+```typescript
+// Server Component → handlers напрямую
+const products = await getFeaturedProducts();
+
+// Client Component → API routes
+const res = await fetch('/api/products?featured=true');
+
+// Параллельные запросы
+const [products, categories] = await Promise.all([
+  getProducts(),
+  getCategories(),
+]);
+
+// Используйте include для связей
+const product = await prisma.product.findUnique({
+  where: { id },
+  include: { category: true },
+});
+```
+
+### ❌ DON'T
+
+```typescript
+// НЕ вызывайте repositories из компонентов
+const productRepo = getProductRepository();
+const products = await productRepo.findAll(); // ❌
+
+// НЕ создавайте новый PrismaClient
+const prisma = new PrismaClient(); // ❌
+
+// НЕ делайте N+1 запросы
+for (const product of products) {
+  const category = await prisma.category.findUnique({
+    where: { id: product.categoryId },
+  }); // ❌
 }
 ```

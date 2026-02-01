@@ -10,17 +10,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ProductGrid } from '@/entities/product/ui/product-grid';
-import { getCategoryRepository } from '@/entities/category/model/repository';
-import { getProductRepository } from '@/entities/product/model/repository';
-import { db } from '@/shared/database/in-memory-connection';
+import {
+  getCategoryBySlug,
+  getCategoryBreadcrumbs,
+  getAllCategories,
+} from '@/entities/category/api/handlers';
+import { getProductsByCategorySlug } from '@/entities/product/api/handlers';
 
 interface CategoryPageProps {
   params: Promise<{ category: string }>;
 }
 
 export async function generateStaticParams() {
-  const categoryRepo = getCategoryRepository(db);
-  const allCategories = await categoryRepo.findAll();
+  const allCategories = await getAllCategories();
   return allCategories.map((cat) => ({
     category: cat.slug,
   }));
@@ -28,13 +30,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: CategoryPageProps) {
   const { category: categorySlug } = await params;
-  const categoryRepo = getCategoryRepository(db);
-  const category = await categoryRepo.findBySlug(categorySlug);
-  
+  const category = await getCategoryBySlug(categorySlug);
+
   if (!category) {
     return { title: 'Категория не найдена' };
   }
-  
+
   return {
     title: category.name,
     description: category.description || `Купить ${category.name.toLowerCase()} в CompLab`,
@@ -43,26 +44,26 @@ export async function generateMetadata({ params }: CategoryPageProps) {
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { category: categorySlug } = await params;
-  const categoryRepo = getCategoryRepository(db);
-  const productRepo = getProductRepository(db);
-  
-  const category = await categoryRepo.findBySlug(categorySlug);
-  
+
+  const [category, categories] = await Promise.all([
+    getCategoryBySlug(categorySlug),
+    getAllCategories(),
+  ]);
+
   if (!category) {
     notFound();
   }
-  
-  const breadcrumbs = await categoryRepo.getBreadcrumbs(category.id);
-  const categories = await categoryRepo.findAll();
-  
+
+  const breadcrumbs = await getCategoryBreadcrumbs(category.id);
+
   // Получаем товары категории и подкатегорий
-  let categoryProducts = await productRepo.findByCategory(categorySlug);
-  
+  let categoryProducts = await getProductsByCategorySlug(categorySlug);
+
   // Если это родительская категория, собираем товары из подкатегорий
   if (categoryProducts.length === 0) {
     const childCategories = categories.filter((c) => c.parentId === category.id);
     for (const child of childCategories) {
-      const childProducts = await productRepo.findByCategory(child.slug);
+      const childProducts = await getProductsByCategorySlug(child.slug);
       categoryProducts = [...categoryProducts, ...childProducts];
     }
   }

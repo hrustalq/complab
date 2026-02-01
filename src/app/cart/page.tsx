@@ -9,9 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { CartItem } from '@/entities/cart/ui/cart-item';
 import { useCartStore } from '@/entities/cart/model/store';
-import { getProductRepository } from '@/entities/product/model/repository';
 import type { Product } from '@/entities/product/model/schemas';
-import { db } from '@/shared/database/in-memory-connection';
 
 export default function CartPage() {
   const { items, clearCart } = useCartStore();
@@ -23,13 +21,23 @@ export default function CartPage() {
     let cancelled = false;
 
     const loadProducts = async () => {
-      const productRepo = getProductRepository(db);
+      if (items.length === 0) {
+        setCartProducts([]);
+        setIsLoading(false);
+        return;
+      }
+
       const loadedProducts: (Product & { quantity: number })[] = [];
 
       for (const item of items) {
-        const product = await productRepo.findById(item.productId);
-        if (product) {
-          loadedProducts.push({ ...product, quantity: item.quantity });
+        try {
+          const res = await fetch(`/api/products/${item.productId}`);
+          if (res.ok) {
+            const product = await res.json();
+            loadedProducts.push({ ...product, quantity: item.quantity });
+          }
+        } catch (error) {
+          console.error('Error loading product:', error);
         }
       }
 
@@ -163,7 +171,7 @@ export default function CartPage() {
                   <span className="text-muted-foreground">Доставка</span>
                   <span>
                     {shipping === 0 ? (
-                      <span className="text-emerald-600">Бесплатно</span>
+                      <span className="text-chart-3">Бесплатно</span>
                     ) : (
                       `${formatPrice(shipping)} ₽`
                     )}

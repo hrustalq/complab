@@ -20,8 +20,8 @@ export default async function CheckoutSuccessPage({
       <Card className="w-full max-w-lg text-center">
         <CardContent className="pt-8">
           <div className="mb-6 flex justify-center">
-            <div className="rounded-full bg-emerald-100 p-4">
-              <CheckCircle className="h-12 w-12 text-emerald-600" />
+            <div className="rounded-full bg-chart-3/15 p-4">
+              <CheckCircle className="h-12 w-12 text-chart-3" />
             </div>
           </div>
 

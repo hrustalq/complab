@@ -14,10 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useCartStore } from '@/entities/cart/model/store';
 import { useUserStore } from '@/entities/user/model/store';
-import { getProductRepository } from '@/entities/product/model/repository';
-import { mockAddresses, mockUser } from '@/entities/user/model/repository';
+import { mockAddresses, mockUser } from '@/entities/user/model/mocks';
 import type { Product } from '@/entities/product/model/schemas';
-import { db } from '@/shared/database/in-memory-connection';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -54,15 +52,19 @@ export default function CheckoutPage() {
   }, [isAuthenticated, login]);
 
   useEffect(() => {
-    if (mounted) {
+    if (mounted && items.length > 0) {
       const loadProducts = async () => {
-        const productRepo = getProductRepository(db);
         const loadedProducts: (Product & { quantity: number })[] = [];
         
         for (const item of items) {
-          const product = await productRepo.findById(item.productId);
-          if (product) {
-            loadedProducts.push({ ...product, quantity: item.quantity });
+          try {
+            const res = await fetch(`/api/products/${item.productId}`);
+            if (res.ok) {
+              const product = await res.json();
+              loadedProducts.push({ ...product, quantity: item.quantity });
+            }
+          } catch (error) {
+            console.error('Error loading product:', error);
           }
         }
         setCartProducts(loadedProducts);
@@ -101,7 +103,7 @@ export default function CheckoutPage() {
     router.push('/checkout/success');
   };
 
-  if (cartProducts.length === 0) {
+  if (cartProducts.length === 0 && items.length === 0) {
     router.push('/cart');
     return null;
   }
@@ -383,7 +385,7 @@ export default function CheckoutPage() {
                     <span className="text-muted-foreground">Доставка</span>
                     <span>
                       {shipping === 0 ? (
-                        <span className="text-emerald-600">Бесплатно</span>
+                        <span className="text-chart-3">Бесплатно</span>
                       ) : (
                         `${formatPrice(shipping)} ₽`
                       )}

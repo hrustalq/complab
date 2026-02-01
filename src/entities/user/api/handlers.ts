@@ -1,4 +1,4 @@
-import { db } from '@/shared/database/in-memory-connection';
+import prisma from '@/lib/prisma';
 import { getUserRepository, getAddressRepository } from '../model/repository';
 import {
   loginRequestSchema,
@@ -12,8 +12,8 @@ import {
   type UserProfileResponse,
 } from '../model/schemas';
 
-const userRepo = getUserRepository(db);
-const addressRepo = getAddressRepository(db);
+const userRepo = getUserRepository();
+const addressRepo = getAddressRepository();
 
 /**
  * Авторизация пользователя
@@ -57,16 +57,26 @@ export async function registerUser(params: unknown): Promise<AuthResponse | null
     return null;
   }
 
-  const newUser = await userRepo.create({
-    email,
-    firstName,
-    lastName,
-    phone,
-    createdAt: new Date().toISOString(),
+  // Create user using Prisma directly for proper typing
+  const newUser = await prisma.user.create({
+    data: {
+      email,
+      firstName,
+      lastName,
+      phone,
+    },
   });
 
   return {
-    user: newUser,
+    user: {
+      id: newUser.id,
+      email: newUser.email,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      phone: newUser.phone ?? undefined,
+      avatar: newUser.avatar ?? undefined,
+      createdAt: newUser.createdAt.toISOString().split('T')[0],
+    },
     token: 'mock-jwt-token-' + Date.now(),
   };
 }
@@ -136,10 +146,27 @@ export async function addUserAddress(
     return null;
   }
 
-  return addressRepo.create({
-    ...validatedParams.data,
-    userId,
+  // Use Prisma directly for proper typing
+  const newAddress = await prisma.address.create({
+    data: {
+      ...validatedParams.data,
+      user: { connect: { id: userId } },
+    },
   });
+
+  return {
+    id: newAddress.id,
+    userId: newAddress.userId,
+    title: newAddress.title,
+    fullName: newAddress.fullName,
+    phone: newAddress.phone,
+    city: newAddress.city,
+    street: newAddress.street,
+    building: newAddress.building,
+    apartment: newAddress.apartment ?? undefined,
+    postalCode: newAddress.postalCode,
+    isDefault: newAddress.isDefault,
+  };
 }
 
 /**

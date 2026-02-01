@@ -17,24 +17,32 @@ ALWAYS use the singleton from `src/lib/prisma.ts`:
 ```typescript
 import prisma from '@/lib/prisma';
 
-// NOT: const prisma = new PrismaClient();
+// ❌ NEVER: const prisma = new PrismaClient();
 ```
 
-## Repository Pattern
+## Repository Pattern with Prisma
 
 Create repositories in `entities/[name]/model/repository.ts`:
 
 ```typescript
+import { PrismaBaseRepository } from '@/shared/repository/base-repository';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@/app/generated/prisma/client';
 import type { Product } from './schemas';
 
-export class ProductRepository {
-  async findById(id: string): Promise<Product | null> {
-    return prisma.product.findUnique({ where: { id } });
-  }
+export class ProductRepository extends PrismaBaseRepository<
+  Product,
+  Prisma.ProductCreateInput,
+  Prisma.ProductUpdateInput
+> {
+  protected modelName = 'product' as const;
 
-  async findAll(): Promise<Product[]> {
-    return prisma.product.findMany();
+  async findBySlug(slug: string): Promise<Product | null> {
+    const product = await prisma.product.findUnique({
+      where: { slug },
+      include: { category: true },
+    });
+    return mapPrismaProduct(product);
   }
 
   async findWithPagination(
@@ -51,12 +59,45 @@ export class ProductRepository {
     ]);
 
     return {
-      items,
+      items: mapPrismaProducts(items),
       total,
       page: pagination.page,
       totalPages: Math.ceil(total / pagination.limit),
     };
   }
+}
+
+// Singleton factory (NO db argument!)
+let instance: ProductRepository | null = null;
+
+export function getProductRepository(): ProductRepository {
+  if (!instance) {
+    instance = new ProductRepository();
+  }
+  return instance;
+}
+```
+
+## Type Mapping (Prisma → App)
+
+Always map Prisma types to app schemas:
+
+```typescript
+type PrismaProduct = Prisma.ProductGetPayload<{
+  include: { category: true };
+}>;
+
+function mapPrismaProduct(product: PrismaProduct | null): Product | null {
+  if (!product) return null;
+
+  return {
+    id: product.id,
+    name: product.name,
+    price: Number(product.price),  // Decimal → number
+    categorySlug: product.category?.slug ?? '',
+    createdAt: product.createdAt.toISOString().split('T')[0],
+    // ... other fields
+  };
 }
 ```
 
@@ -67,13 +108,16 @@ Wrap read operations with React `cache`:
 ```typescript
 import { cache } from 'react';
 import 'server-only';
-import prisma from '@/lib/prisma';
+import { getProductRepository } from '../model/repository';
+
+const productRepo = getProductRepository();
 
 export const getProduct = cache(async (id: string) => {
-  return prisma.product.findUnique({
-    where: { id },
-    include: { category: true },
-  });
+  return productRepo.findById(id);
+});
+
+export const getProductBySlug = cache(async (slug: string) => {
+  return productRepo.findBySlug(slug);
 });
 ```
 
@@ -83,17 +127,17 @@ Mutations should invalidate cache:
 
 ```typescript
 'use server';
-import { revalidateTag } from 'next/cache';
-import prisma from '@/lib/prisma';
+import { revalidateTag, revalidatePath } from 'next/cache';
+import { getProductRepository } from '../model/repository';
+
+const productRepo = getProductRepository();
 
 export async function updateProduct(id: string, data: Input) {
-  const product = await prisma.product.update({
-    where: { id },
-    data,
-  });
+  const product = await productRepo.update(id, data);
 
   revalidateTag(`product-${id}`);
-  revalidateTag(`products-${product.categorySlug}`);
+  revalidateTag(`products-${product?.categorySlug}`);
+  revalidatePath('/catalog');
 
   return product;
 }
@@ -108,4 +152,40 @@ const [items, total] = await Promise.all([
   prisma.product.findMany({ where, skip, take }),
   prisma.product.count({ where }),
 ]);
+```
+
+## Relations in Create/Update
+
+Use Prisma's relation syntax:
+
+```typescript
+// ✅ Correct - connecting existing relation
+await prisma.orderItem.create({
+  data: {
+    quantity: 1,
+    price: 100,
+    order: { connect: { id: orderId } },
+    product: { connect: { id: productId } },
+  },
+});
+
+// ❌ Wrong - don't use direct IDs for relations
+await prisma.orderItem.create({
+  data: {
+    orderId: orderId,  // ❌
+    productId: productId,  // ❌
+    quantity: 1,
+    price: 100,
+  },
+});
+```
+
+## Prisma Commands
+
+```bash
+npx prisma generate    # Generate client
+npx prisma migrate dev # Apply migrations
+npx prisma studio      # DB viewer
+npx prisma db seed     # Seed database
+npm run db:seed        # Custom seed script
 ```

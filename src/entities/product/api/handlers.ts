@@ -1,4 +1,3 @@
-import { db } from '@/shared/database/in-memory-connection';
 import { getProductRepository } from '../model/repository';
 import {
   getProductsRequestSchema,
@@ -9,9 +8,8 @@ import {
   type ProductCardDto,
   mapProductToCard,
 } from '../model/schemas';
-import type { SortOptions } from '@/shared/database/types';
 
-const productRepo = getProductRepository(db);
+const productRepo = getProductRepository();
 
 /**
  * Получить товары с фильтрацией, пагинацией и сортировкой
@@ -23,8 +21,8 @@ export async function getProducts(params: unknown): Promise<ProductListResponse>
     ? validatedParams.data
     : { filter: undefined, sort: undefined, page: 1, limit: 12 };
 
-  const productSort: SortOptions<Product> | undefined = sort
-    ? { field: sort.field as keyof Product, direction: sort.direction }
+  const productSort = sort
+    ? { field: sort.field, direction: sort.direction }
     : undefined;
 
   const result = await productRepo.findWithFilters(
@@ -43,7 +41,7 @@ export async function getProducts(params: unknown): Promise<ProductListResponse>
 }
 
 /**
- * Получить товары по категории
+ * Получить товары по категории (с пагинацией)
  */
 export async function getProductsByCategory(
   categorySlug: string,
@@ -60,6 +58,13 @@ export async function getProductsByCategory(
     limit: result.limit,
     totalPages: result.totalPages,
   };
+}
+
+/**
+ * Получить товары по категории (простой список)
+ */
+export async function getProductsByCategorySlug(categorySlug: string): Promise<Product[]> {
+  return productRepo.findByCategory(categorySlug);
 }
 
 /**

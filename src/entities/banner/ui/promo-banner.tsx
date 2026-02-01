@@ -11,14 +11,14 @@ interface PromoBannerCardProps {
 export function PromoBannerCard({ banner }: PromoBannerCardProps) {
   return (
     <Link href={banner.link}>
-      <Card className="group overflow-hidden transition-all hover:shadow-lg">
+      <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
         <CardContent className="relative p-0">
           <div className="relative h-36 w-full overflow-hidden">
             <Image
               src={banner.image}
               alt={banner.title}
               fill
-              className="object-cover transition-transform group-hover:scale-105"
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-linear-to-t from-black/70 to-transparent" />
           </div>
@@ -27,7 +27,7 @@ export function PromoBannerCard({ banner }: PromoBannerCardProps) {
             {banner.subtitle && (
               <p className="text-sm opacity-90">{banner.subtitle}</p>
             )}
-            <span className="mt-2 inline-flex items-center text-sm font-medium text-primary-foreground/90 group-hover:text-white">
+            <span className="mt-2 inline-flex items-center text-sm font-medium opacity-90 group-hover:opacity-100">
               {banner.buttonText || 'Подробнее'}
               <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </span>

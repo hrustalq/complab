@@ -6,41 +6,145 @@ globs:
 
 # API Routes Rules
 
-Follow `docs/ARCHITECTURE.md` for API structure.
+Follow `docs/REPOSITORY.md` for API structure.
+
+## Architecture
+
+```
+Server Components → handlers (direct)
+Client Components → fetch('/api/...') → API routes → handlers
+API Routes → handlers → repositories → Prisma
+```
 
 ## Structure
 
 ```
 src/app/api/
 ├── products/
-│   ├── route.ts           # GET/POST /api/products
-│   └── [id]/
-│       └── route.ts       # GET/PUT/DELETE /api/products/:id
+│   ├── route.ts                    # GET /api/products
+│   ├── schemas.ts                  # Zod schemas for query params
+│   ├── [id]/route.ts               # GET /api/products/:id
+│   └── ...
+├── categories/
+│   ├── route.ts
+│   ├── schemas.ts
+│   └── [slug]/route.ts
 └── ...
 ```
 
-## Reuse Entity Handlers
+## Search Params Parsing with Zod
 
-ALWAYS import and reuse handlers from entities:
+ALWAYS use Zod schemas for parsing search params:
+
+### 1. Create schemas file
+
+```typescript
+// src/app/api/products/schemas.ts
+import { z } from 'zod';
+import { paginationSchema, booleanString, commaSeparatedArray } from '@/shared/api/search-params';
+
+export const getProductsQuerySchema = z.object({
+  // Search
+  query: z.string().optional(),
+  
+  // Filters
+  featured: booleanString,
+  inStock: booleanString,
+  
+  // Price filter
+  priceMin: z.coerce.number().min(0).optional(),
+  priceMax: z.coerce.number().min(0).optional(),
+  
+  // Brand filter (comma-separated)
+  brands: commaSeparatedArray,
+  
+  // Pagination
+  ...paginationSchema.shape,
+  
+  // Sort
+  sortBy: z.enum(['price', 'rating', 'createdAt', 'name']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('asc'),
+});
+
+export type GetProductsQuery = z.infer<typeof getProductsQuerySchema>;
+```
+
+### 2. Use in route
 
 ```typescript
 // src/app/api/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getProducts, createProduct } from '@/entities/product/api/handlers';
-import { createProductSchema } from '@/entities/product/model/schemas';
+import { parseSearchParams } from '@/shared/api/search-params';
+import { getProductsQuerySchema } from './schemas';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const result = await getProducts(Object.fromEntries(searchParams));
-  return NextResponse.json(result);
+  const query = parseSearchParams(searchParams, getProductsQuerySchema);
+
+  if (query.featured) {
+    // Type-safe access to query.featured (boolean)
+  }
+
+  if (query.priceMin !== undefined) {
+    // Type-safe access to query.priceMin (number)
+  }
 }
+```
+
+## Shared Search Params Utilities
+
+Use utilities from `@/shared/api/search-params`:
+
+```typescript
+import {
+  parseSearchParams,       // Returns defaults on failure
+  parseSearchParamsStrict, // Returns error on failure
+  paginationSchema,        // { page, limit }
+  sortSchema,              // { sortBy, sortOrder }
+  booleanString,           // Coerces 'true'/'false'/'1'/'0' to boolean
+  commaSeparatedArray,     // Splits 'a,b,c' into ['a', 'b', 'c']
+} from '@/shared/api/search-params';
+```
+
+### Strict validation (for required params)
+
+```typescript
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const result = parseSearchParamsStrict(searchParams, getOrdersQuerySchema);
+
+  if (!result.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: result.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const query = result.data;
+  // userId is guaranteed to exist
+}
+```
+
+## Response Codes
+
+- `200` - Success (GET, PUT, PATCH)
+- `201` - Created (POST)
+- `204` - No Content (DELETE)
+- `400` - Validation Error
+- `404` - Not Found
+- `500` - Server Error
+
+## Body Validation
+
+ALWAYS validate request body with Zod:
+
+```typescript
+import { createProductSchema } from '@/entities/product/model/schemas';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  
-  // Validate with Zod schema from entity
   const validated = createProductSchema.safeParse(body);
-  
+
   if (!validated.success) {
     return NextResponse.json(
       { error: 'Validation failed', details: validated.error.issues },
@@ -53,26 +157,30 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-## Response Codes
+## Route Params (Next.js 15+)
 
-- `200` - Success (GET, PUT)
-- `201` - Created (POST)
-- `204` - No Content (DELETE)
-- `400` - Validation Error
-- `404` - Not Found
-- `500` - Server Error
-
-## Validation
-
-ALWAYS validate input with Zod schemas from entities:
+Use async params in dynamic routes:
 
 ```typescript
-const validated = schema.safeParse(input);
-
-if (!validated.success) {
-  return NextResponse.json(
-    { error: 'Validation failed', details: validated.error.issues },
-    { status: 400 }
-  );
+interface RouteParams {
+  params: Promise<{ id: string }>;
 }
+
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  // ...
+}
+```
+
+## ❌ DON'T
+
+```typescript
+// DON'T parse manually
+const featured = searchParams.get('featured') === 'true'; // ❌
+
+// DON'T use Object.fromEntries without schema
+const params = Object.fromEntries(searchParams); // ❌ No type safety
+
+// DON'T skip validation
+const body = await request.json(); // ❌ Untrusted input
 ```

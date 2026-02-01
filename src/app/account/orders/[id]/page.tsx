@@ -11,10 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { OrderStatusTimeline } from '@/entities/order/ui/order-status-timeline';
 import { useUserStore } from '@/entities/user/model/store';
-import { mockUser } from '@/entities/user/model/repository';
-import { getOrderRepository } from '@/entities/order/model/repository';
+import { mockUser } from '@/entities/user/model/mocks';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/entities/order/model/schemas';
-import { db } from '@/shared/database/in-memory-connection';
+import type { Order } from '@/entities/order/model/schemas';
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
@@ -24,7 +23,8 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
   const { id } = use(params);
   const { isAuthenticated, login } = useUserStore();
   const [mounted, setMounted] = useState(false);
-  const [order, setOrder] = useState<Awaited<ReturnType<typeof getOrderRepository>>['data'][number] | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -38,12 +38,22 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
 
   useEffect(() => {
     if (mounted) {
-      const orderRepo = getOrderRepository(db);
-      orderRepo.findById(id).then(setOrder);
+      fetch(`/api/orders/${id}`)
+        .then((res) => {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then((data) => {
+          setOrder(data);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
     }
   }, [id, mounted]);
 
-  if (!mounted) {
+  if (!mounted || isLoading) {
     return (
       <div className="container py-8">
         <div className="h-96 animate-pulse rounded-xl bg-muted" />
@@ -202,7 +212,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                 <span className="text-muted-foreground">Доставка</span>
                 <span>
                   {order.shippingCost === 0 ? (
-                    <span className="text-emerald-600">Бесплатно</span>
+                    <span className="text-chart-3">Бесплатно</span>
                   ) : (
                     `${formatPrice(order.shippingCost)} ₽`
                   )}
@@ -211,7 +221,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
               {order.discount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Скидка</span>
-                  <span className="text-emerald-600">
+                  <span className="text-chart-3">
                     -{formatPrice(order.discount)} ₽
                   </span>
                 </div>
@@ -269,8 +279,8 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                 <span
                   className={
                     order.paymentStatus === 'paid'
-                      ? 'text-emerald-600'
-                      : 'text-amber-600'
+                      ? 'text-chart-3'
+                      : 'text-chart-4'
                   }
                 >
                   {order.paymentStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}

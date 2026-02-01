@@ -1,7 +1,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Package, ChevronRight } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Order } from '../model/schemas';
@@ -32,16 +39,17 @@ export function OrderCard({ order }: OrderCardProps) {
             <Package className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="font-semibold">{order.orderNumber}</p>
-            <p className="text-sm text-muted-foreground">
+            <CardTitle className="text-base">{order.orderNumber}</CardTitle>
+            <CardDescription>
               от {formatDate(order.createdAt)}
-            </p>
+            </CardDescription>
           </div>
         </div>
         <Badge className={ORDER_STATUS_COLORS[order.status]}>
           {ORDER_STATUS_LABELS[order.status]}
         </Badge>
       </CardHeader>
+
       <CardContent>
         {/* Order Items Preview */}
         <div className="mb-4 flex flex-wrap gap-2">
@@ -85,12 +93,6 @@ export function OrderCard({ order }: OrderCardProps) {
             </p>
             <p className="font-semibold">{formatPrice(order.total)} ₽</p>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/account/orders/${order.id}`}>
-              Подробнее
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
         </div>
 
         {/* Tracking Info */}
@@ -108,6 +110,15 @@ export function OrderCard({ order }: OrderCardProps) {
           </div>
         )}
       </CardContent>
+
+      <CardFooter>
+        <Button variant="outline" size="sm" className="w-full" asChild>
+          <Link href={`/account/orders/${order.id}`}>
+            Подробнее
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Link>
+        </Button>
+      </CardFooter>
     </Card>
   );
 }

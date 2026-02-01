@@ -1,4 +1,4 @@
-import { db } from '@/shared/database/in-memory-connection';
+import prisma from '@/lib/prisma';
 import {
   getRepairServiceRepository,
   getRepairRequestRepository,
@@ -14,8 +14,8 @@ import {
   type RepairCategory,
 } from '../model/schemas';
 
-const serviceRepo = getRepairServiceRepository(db);
-const requestRepo = getRepairRequestRepository(db);
+const serviceRepo = getRepairServiceRepository();
+const requestRepo = getRepairRequestRepository();
 
 /**
  * Получить все услуги ремонта (async)
@@ -76,6 +76,16 @@ export async function getRepairRequestByNumber(
   return requestRepo.findByRequestNumber(requestNumber);
 }
 
+// Map category to Prisma enum
+const categoryToPrisma: Record<RepairCategory, 'LAPTOP' | 'DESKTOP' | 'MONITOR' | 'PERIPHERAL' | 'DATA_RECOVERY' | 'UPGRADE'> = {
+  laptop: 'LAPTOP',
+  desktop: 'DESKTOP',
+  monitor: 'MONITOR',
+  peripheral: 'PERIPHERAL',
+  data_recovery: 'DATA_RECOVERY',
+  upgrade: 'UPGRADE',
+};
+
 /**
  * Создать заявку на ремонт
  */
@@ -97,25 +107,56 @@ export async function createRepairRequest(
 
   const requestNumber = requestRepo.generateRequestNumber();
 
-  return requestRepo.create({
-    requestNumber,
-    userId,
-    service,
-    deviceType,
-    deviceBrand,
-    deviceModel,
-    serialNumber,
-    problemDescription,
-    status: 'pending',
-    statusHistory: [
-      {
-        status: 'pending',
-        timestamp: new Date().toISOString(),
-      },
-    ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  // Create using Prisma directly for proper typing
+  const newRequest = await prisma.repairRequest.create({
+    data: {
+      requestNumber,
+      user: { connect: { id: userId } },
+      service: { connect: { id: serviceId } },
+      deviceType,
+      deviceBrand,
+      deviceModel,
+      serialNumber,
+      problemDescription,
+      status: 'PENDING',
+      statusHistory: [
+        {
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    },
+    include: { service: true, user: true },
   });
+
+  // Map back to app schema
+  return {
+    id: newRequest.id,
+    requestNumber: newRequest.requestNumber,
+    userId: newRequest.userId,
+    service: {
+      id: newRequest.service.id,
+      name: newRequest.service.name,
+      description: newRequest.service.description,
+      category: newRequest.service.category.toLowerCase() as RepairCategory,
+      estimatedTime: newRequest.service.estimatedTime,
+      priceFrom: Number(newRequest.service.priceFrom),
+      priceTo: newRequest.service.priceTo ? Number(newRequest.service.priceTo) : undefined,
+      isPopular: newRequest.service.isPopular,
+    },
+    deviceType: newRequest.deviceType,
+    deviceBrand: newRequest.deviceBrand,
+    deviceModel: newRequest.deviceModel,
+    serialNumber: newRequest.serialNumber ?? undefined,
+    problemDescription: newRequest.problemDescription,
+    status: 'pending' as const,
+    statusHistory: [{ status: 'pending' as const, timestamp: new Date().toISOString() }],
+    estimatedCost: newRequest.estimatedCost ? Number(newRequest.estimatedCost) : undefined,
+    finalCost: newRequest.finalCost ? Number(newRequest.finalCost) : undefined,
+    createdAt: newRequest.createdAt.toISOString(),
+    updatedAt: newRequest.updatedAt.toISOString(),
+    completedAt: newRequest.completedAt?.toISOString(),
+  };
 }
 
 // Синхронные версии (legacy)

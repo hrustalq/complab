@@ -1,4 +1,3 @@
-import { db } from '@/shared/database/in-memory-connection';
 import { getOrderRepository, validatePromoCode } from '../model/repository';
 import {
   createOrderRequestSchema,
@@ -9,7 +8,7 @@ import {
   type ValidatePromoCodeResponse,
 } from '../model/schemas';
 
-const orderRepo = getOrderRepository(db);
+const orderRepo = getOrderRepository();
 
 /**
  * Получить заказы пользователя

@@ -1,9 +1,9 @@
-import { db } from '@/shared/database/in-memory-connection';
+import prisma from '@/lib/prisma';
 import { getCategoryRepository } from '../model/repository';
 import { getCategoriesParamsSchema } from '../model/schemas';
 import type { Category, CategoryWithChildren, CategoryBreadcrumb } from '../model/schemas';
 
-const categoryRepo = getCategoryRepository(db);
+const categoryRepo = getCategoryRepository();
 
 /**
  * Получить все категории (дерево)
@@ -48,6 +48,13 @@ export async function getCategoryBreadcrumbs(categoryId: string): Promise<Catego
 }
 
 /**
+ * Получить все категории (плоский список)
+ */
+export async function getAllCategories(): Promise<Category[]> {
+  return categoryRepo.findAll();
+}
+
+/**
  * Получить категории с фильтром
  */
 export async function getCategoriesFiltered(params: unknown): Promise<Category[]> {
@@ -64,7 +71,22 @@ export async function getCategoriesFiltered(params: unknown): Promise<Category[]
   }
 
   if (isActive !== undefined) {
-    return categoryRepo.findMany({ isActive });
+    // Use prisma directly for filtered queries
+    const categories = await prisma.category.findMany({
+      where: { isActive },
+      orderBy: { order: 'asc' },
+    });
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      description: c.description ?? undefined,
+      icon: c.icon ?? undefined,
+      image: c.image ?? undefined,
+      parentId: c.parentId ?? undefined,
+      order: c.order,
+      isActive: c.isActive,
+    }));
   }
 
   return categoryRepo.findAll();

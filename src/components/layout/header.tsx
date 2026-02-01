@@ -40,9 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCartStore } from '@/entities/cart/model/store';
 import { useUserStore } from '@/entities/user/model/store';
-import { getCategoryRepository } from '@/entities/category/model/repository';
 import type { CategoryWithChildren } from '@/entities/category/model/schemas';
-import { db } from '@/shared/database/in-memory-connection';
 import { cn } from '@/lib/utils';
 
 export function Header() {
@@ -52,14 +50,16 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   const totalItems = useCartStore((state) => state.getTotalQuantity());
   const { isAuthenticated, user } = useUserStore();
   const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
 
   useEffect(() => {
-    const categoryRepo = getCategoryRepository(db);
-    categoryRepo.findTree().then(setCategories);
+    fetch('/api/categories?tree=true')
+      .then((res) => res.json())
+      .then((data) => setCategories(data.categories || []))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -92,8 +92,8 @@ export function Header() {
     { href: '/', label: 'Главная', icon: Home },
     { href: '/catalog', label: 'Каталог', icon: Menu, hasSubmenu: true },
     { href: '/repair', label: 'Ремонт техники', icon: Wrench },
-    { href: '/sale', label: 'Распродажа', icon: Tag, highlight: 'text-red-500' },
-    { href: '/new', label: 'Новинки', icon: Sparkles, highlight: 'text-emerald-600' },
+    { href: '/sale', label: 'Распродажа', icon: Tag, highlight: 'text-destructive' },
+    { href: '/new', label: 'Новинки', icon: Sparkles, highlight: 'text-chart-3' },
     { href: '/about', label: 'О компании', icon: null },
     { href: '/contacts', label: 'Контакты', icon: null },
   ];
@@ -151,9 +151,9 @@ export function Header() {
         {/* Mobile Menu */}
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-10 w-10 shrink-0 lg:hidden"
               aria-label="Открыть меню"
             >
@@ -171,7 +171,7 @@ export function Header() {
                 </SheetClose>
               </div>
             </SheetHeader>
-            
+
             {/* Mobile Search */}
             <div className="border-b p-4">
               <form onSubmit={handleSearch}>
@@ -187,7 +187,7 @@ export function Header() {
                 </div>
               </form>
             </div>
-            
+
             <nav className="flex flex-col touch-scroll overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 140px)' }}>
               {menuItems.map((item) => (
                 <div key={item.href}>
@@ -233,7 +233,7 @@ export function Header() {
                   )}
                 </div>
               ))}
-              
+
               {/* Contact info in mobile menu */}
               <div className="mt-auto border-t p-4">
                 <a
@@ -299,7 +299,7 @@ export function Header() {
             />
           </div>
         </form>
-        
+
         {/* Spacer for mobile */}
         <div className="flex-1 sm:hidden" />
 
@@ -316,10 +316,10 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="hidden h-10 w-10 sm:flex" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden h-10 w-10 sm:flex"
             asChild
           >
             <Link href="/favorites" aria-label="Избранное">
@@ -327,10 +327,10 @@ export function Header() {
             </Link>
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative hidden h-10 w-10 sm:flex" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative hidden h-10 w-10 sm:flex"
             asChild
           >
             <Link href="/cart" aria-label={`Корзина${totalItems > 0 ? `, ${totalItems} товаров` : ''}`}>
@@ -346,9 +346,9 @@ export function Header() {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="hidden h-10 w-10 sm:flex"
                   aria-label="Аккаунт"
                 >
@@ -380,10 +380,10 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="hidden h-10 px-3 sm:flex" 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden h-10 px-3 sm:flex"
               asChild
             >
               <Link href="/auth/login">
@@ -394,7 +394,7 @@ export function Header() {
           )}
         </div>
       </div>
-      
+
       {/* Mobile Search Dropdown */}
       {isSearchOpen && (
         <div className="border-t bg-background p-4 sm:hidden animate-slide-down">
@@ -437,13 +437,13 @@ export function Header() {
           </Link>
           <Link
             href="/sale"
-            className="text-sm font-medium text-red-500 transition-colors hover:text-red-600"
+            className="text-sm font-medium text-destructive transition-colors hover:text-destructive/80"
           >
             Распродажа
           </Link>
           <Link
             href="/new"
-            className="text-sm font-medium text-emerald-600 transition-colors hover:text-emerald-700"
+            className="text-sm font-medium text-chart-3 transition-colors hover:text-chart-3/80"
           >
             Новинки
           </Link>
