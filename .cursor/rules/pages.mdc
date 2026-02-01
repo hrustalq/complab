@@ -1,0 +1,101 @@
+---
+description: Rules for Next.js pages and layouts
+globs:
+  - "src/app/**/page.tsx"
+  - "src/app/**/layout.tsx"
+  - "src/app/**/loading.tsx"
+  - "src/app/**/error.tsx"
+---
+
+# Page Development Rules
+
+Follow `docs/CACHE_COMPONENTS.md` and `docs/ARCHITECTURE.md`.
+
+## Server Components (Default)
+
+Pages are Server Components by default. Fetch data directly:
+
+```typescript
+import { getProducts } from '@/entities/product/api/handlers';
+
+export default async function Page() {
+  const products = await getProducts();
+  return <ProductGrid products={products} />;
+}
+```
+
+## Parallel Data Fetching
+
+ALWAYS fetch data in parallel when possible:
+
+```typescript
+// ✅ Correct - parallel
+const [products, categories, banners] = await Promise.all([
+  getProducts(),
+  getCategories(),
+  getBanners(),
+]);
+
+// ❌ Wrong - sequential
+const products = await getProducts();
+const categories = await getCategories();
+const banners = await getBanners();
+```
+
+## Dynamic Content with Suspense
+
+Wrap personalized content in Suspense:
+
+```typescript
+import { Suspense } from 'react';
+
+export default function Page() {
+  return (
+    <>
+      <ProductGrid />  {/* Cached */}
+      
+      <Suspense fallback={<CartSkeleton />}>
+        <UserCart />   {/* Runtime */}
+      </Suspense>
+    </>
+  );
+}
+```
+
+## Cached Components
+
+For data grids, use `use cache`:
+
+```typescript
+import { cacheLife, cacheTag } from 'next/cache';
+
+async function ProductGrid({ categorySlug }: { categorySlug: string }) {
+  'use cache';
+  cacheLife('hours');
+  cacheTag(`products-${categorySlug}`);
+  
+  const products = await getProducts({ category: categorySlug });
+  return <div>...</div>;
+}
+```
+
+## Loading States
+
+Create `loading.tsx` for route-level loading:
+
+```typescript
+// app/catalog/loading.tsx
+export default function Loading() {
+  return <ProductGridSkeleton />;
+}
+```
+
+## Prefetching
+
+Use `next/link` for automatic prefetching:
+
+```typescript
+import Link from 'next/link';
+
+<Link href="/catalog/laptops">Laptops</Link>
+```

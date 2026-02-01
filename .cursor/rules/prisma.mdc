@@ -1,0 +1,111 @@
+---
+description: Rules for Prisma and database operations
+globs:
+  - "src/lib/prisma.ts"
+  - "src/entities/**/model/repository.ts"
+  - "prisma/**/*"
+---
+
+# Prisma & Database Rules
+
+Follow `docs/REPOSITORY.md`.
+
+## Prisma Singleton
+
+ALWAYS use the singleton from `src/lib/prisma.ts`:
+
+```typescript
+import prisma from '@/lib/prisma';
+
+// NOT: const prisma = new PrismaClient();
+```
+
+## Repository Pattern
+
+Create repositories in `entities/[name]/model/repository.ts`:
+
+```typescript
+import prisma from '@/lib/prisma';
+import type { Product } from './schemas';
+
+export class ProductRepository {
+  async findById(id: string): Promise<Product | null> {
+    return prisma.product.findUnique({ where: { id } });
+  }
+
+  async findAll(): Promise<Product[]> {
+    return prisma.product.findMany();
+  }
+
+  async findWithPagination(
+    where: Prisma.ProductWhereInput,
+    pagination: { page: number; limit: number }
+  ) {
+    const [items, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page: pagination.page,
+      totalPages: Math.ceil(total / pagination.limit),
+    };
+  }
+}
+```
+
+## Handlers with React Cache
+
+Wrap read operations with React `cache`:
+
+```typescript
+import { cache } from 'react';
+import 'server-only';
+import prisma from '@/lib/prisma';
+
+export const getProduct = cache(async (id: string) => {
+  return prisma.product.findUnique({
+    where: { id },
+    include: { category: true },
+  });
+});
+```
+
+## Mutations with Invalidation
+
+Mutations should invalidate cache:
+
+```typescript
+'use server';
+import { revalidateTag } from 'next/cache';
+import prisma from '@/lib/prisma';
+
+export async function updateProduct(id: string, data: Input) {
+  const product = await prisma.product.update({
+    where: { id },
+    data,
+  });
+
+  revalidateTag(`product-${id}`);
+  revalidateTag(`products-${product.categorySlug}`);
+
+  return product;
+}
+```
+
+## Parallel Queries
+
+Use `Promise.all` for multiple independent queries:
+
+```typescript
+const [items, total] = await Promise.all([
+  prisma.product.findMany({ where, skip, take }),
+  prisma.product.count({ where }),
+]);
+```

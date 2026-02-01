@@ -1,0 +1,106 @@
+---
+description: Rules for UI components
+globs:
+  - "src/components/**/*.tsx"
+  - "src/entities/**/ui/**/*.tsx"
+---
+
+# Component Development Rules
+
+Follow `docs/STYLING.md` and `docs/CODE_STYLE.md`.
+
+## shadcn/ui Card Structure
+
+ALWAYS use proper Card structure:
+
+```typescript
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+
+function MyCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Title</CardTitle>
+        <CardDescription>Description</CardDescription>
+        <Badge>Tag</Badge>
+      </CardHeader>
+      
+      <CardContent>
+        {/* Images, text, lists */}
+      </CardContent>
+      
+      <CardFooter>
+        {/* ONLY buttons and actions */}
+        <Button>Action</Button>
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+## Animation Performance
+
+NO excessive animations on cards/grids:
+
+```typescript
+// ❌ WRONG - impacts performance
+<Card className="hover:scale-105 transition-transform">
+
+// ✅ CORRECT - shadow/border only
+<Card className="transition-shadow hover:shadow-lg hover:border-primary/50">
+```
+
+## Client Components
+
+Add `'use client'` directive for:
+- Components with hooks (useState, useEffect)
+- Components with Zustand stores
+- Interactive components
+
+```typescript
+'use client';
+
+import { useCartStore } from '@/entities/cart/model/store';
+
+export function CartButton() {
+  const items = useCartStore((s) => s.items);
+  // ...
+}
+```
+
+## Tailwind CSS 4 Syntax
+
+```typescript
+// ✅ Correct
+className="bg-linear-to-r from-primary to-secondary"
+className="min-h-10"  // Not min-h-[2.5rem]
+className="supports-backdrop-filter:bg-background/80"
+
+// ❌ Old syntax
+className="bg-gradient-to-r"
+className="min-h-[2.5rem]"
+className="supports-[backdrop-filter]:bg-background/80"
+```
+
+## Responsive Design
+
+Mobile-first approach:
+
+```typescript
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+```
+
+## Type Imports
+
+Use `import type` for types:
+
+```typescript
+import type { Product } from '../model/schemas';
+```

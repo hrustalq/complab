@@ -1,0 +1,156 @@
+---
+description: CompLab project architecture and coding guidelines
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: true
+---
+
+# CompLab Project Guidelines
+
+This is a Next.js 16+ e-commerce project for computer electronics sales and repair.
+
+## 📚 Documentation Reference
+
+Before implementing any feature, ALWAYS consult the project documentation:
+
+- **Architecture & Structure**: `docs/ARCHITECTURE.md`
+- **Entity Pattern**: `docs/ENTITIES.md`
+- **Repository & Prisma**: `docs/REPOSITORY.md`
+- **Data Fetching & Caching**: `docs/CACHE_COMPONENTS.md`
+- **Validation (Zod)**: `docs/VALIDATION.md`
+- **Styling Rules**: `docs/STYLING.md`
+- **Code Style**: `docs/CODE_STYLE.md`
+
+## 🏗️ Architecture Rules
+
+### Entity Structure
+
+Every business entity MUST follow this structure:
+```
+entities/[entity-name]/
+├── api/handlers.ts      # Server-side handlers with React cache
+├── model/
+│   ├── schemas.ts       # Zod schemas + TypeScript types
+│   ├── repository.ts    # Prisma repository
+│   └── store.ts         # Zustand store (if needed)
+└── ui/                  # React components
+```
+
+### NO Barrel Exports
+
+NEVER create `index.ts` barrel exports in entities to prevent client/server code mixing.
+
+```typescript
+// ❌ WRONG
+import { ProductCard, getProducts } from '@/entities/product';
+
+// ✅ CORRECT
+import { ProductCard } from '@/entities/product/ui/product-card';
+import { getProducts } from '@/entities/product/api/handlers';
+```
+
+## 📦 Data Fetching
+
+### Use React `cache` for queries
+
+```typescript
+import { cache } from 'react';
+import 'server-only';
+
+export const getProduct = cache(async (id: string) => {
+  return prisma.product.findUnique({ where: { id } });
+});
+```
+
+### Use `use cache` directive for components
+
+```typescript
+async function ProductGrid() {
+  'use cache';
+  cacheLife('hours');
+  // ...
+}
+```
+
+### Invalidate on mutations
+
+```typescript
+'use server';
+import { revalidateTag } from 'next/cache';
+
+export async function updateProduct(id: string, data: Input) {
+  await prisma.product.update({ where: { id }, data });
+  revalidateTag(`product-${id}`);
+}
+```
+
+### Parallel fetching
+
+```typescript
+const [products, categories] = await Promise.all([
+  getProducts(),
+  getCategories(),
+]);
+```
+
+## 🎨 Styling Rules
+
+### Card Structure (shadcn/ui)
+
+```typescript
+<Card>
+  <CardHeader>     {/* Title, description, badges */}
+  <CardContent>    {/* Main content, images */}
+  <CardFooter>     {/* ONLY action buttons */}
+</Card>
+```
+
+### NO Scale Animations
+
+```typescript
+// ❌ Impacts performance
+<Card className="hover:scale-105">
+
+// ✅ Use shadow/border only
+<Card className="transition-shadow hover:shadow-lg">
+```
+
+### Tailwind CSS 4
+
+```typescript
+// ✅ Correct
+className="bg-linear-to-r"
+
+// ❌ Old syntax
+className="bg-gradient-to-r"
+```
+
+## ✅ Validation
+
+Use Zod schemas from `model/schemas.ts`:
+
+```typescript
+// Types derived from schemas
+export type Product = z.infer<typeof productSchema>;
+
+// Validation in handlers
+const result = schema.safeParse(input);
+```
+
+## 🔗 Navigation
+
+Always use `next/link` for prefetching:
+
+```typescript
+import Link from 'next/link';
+
+<Link href="/catalog/laptops">Laptops</Link>
+```
+
+## 📁 File Naming
+
+- Files: `kebab-case` (product-card.tsx)
+- Components: `PascalCase` (ProductCard)
+- Functions: `camelCase` (getProductById)
+- Constants: `SCREAMING_SNAKE_CASE`

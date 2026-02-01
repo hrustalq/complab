@@ -1,0 +1,64 @@
+---
+description: Rules for working with entities
+globs:
+  - "src/entities/**/*.ts"
+  - "src/entities/**/*.tsx"
+---
+
+# Entity Development Rules
+
+When creating or modifying entities, follow `docs/ENTITIES.md`.
+
+## Creating New Entity
+
+1. Create directory structure:
+   ```
+   entities/[name]/
+   ├── api/handlers.ts
+   ├── model/schemas.ts
+   ├── model/repository.ts
+   └── ui/
+   ```
+
+2. Define Zod schemas first (`model/schemas.ts`):
+   ```typescript
+   import { z } from 'zod';
+   
+   export const entitySchema = z.object({
+     id: z.string(),
+     // fields...
+   });
+   
+   export type Entity = z.infer<typeof entitySchema>;
+   ```
+
+3. Create handlers with React `cache` (`api/handlers.ts`):
+   ```typescript
+   import { cache } from 'react';
+   import 'server-only';
+   import prisma from '@/lib/prisma';
+   
+   export const getEntity = cache(async (id: string) => {
+     return prisma.entity.findUnique({ where: { id } });
+   });
+   ```
+
+4. Create Server Actions for mutations:
+   ```typescript
+   'use server';
+   import { revalidateTag } from 'next/cache';
+   
+   export async function updateEntity(id: string, data: Input) {
+     await prisma.entity.update({ where: { id }, data });
+     revalidateTag(`entity-${id}`);
+   }
+   ```
+
+## UI Components
+
+- Place in `ui/` directory
+- Import types from `../model/schemas`
+- Use shadcn/ui Card structure properly:
+  - `CardHeader` → title, badges
+  - `CardContent` → content
+  - `CardFooter` → buttons ONLY

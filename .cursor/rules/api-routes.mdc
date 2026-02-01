@@ -1,0 +1,78 @@
+---
+description: Rules for API routes
+globs:
+  - "src/app/api/**/*.ts"
+---
+
+# API Routes Rules
+
+Follow `docs/ARCHITECTURE.md` for API structure.
+
+## Structure
+
+```
+src/app/api/
+├── products/
+│   ├── route.ts           # GET/POST /api/products
+│   └── [id]/
+│       └── route.ts       # GET/PUT/DELETE /api/products/:id
+└── ...
+```
+
+## Reuse Entity Handlers
+
+ALWAYS import and reuse handlers from entities:
+
+```typescript
+// src/app/api/products/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getProducts, createProduct } from '@/entities/product/api/handlers';
+import { createProductSchema } from '@/entities/product/model/schemas';
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const result = await getProducts(Object.fromEntries(searchParams));
+  return NextResponse.json(result);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  
+  // Validate with Zod schema from entity
+  const validated = createProductSchema.safeParse(body);
+  
+  if (!validated.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: validated.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const product = await createProduct(validated.data);
+  return NextResponse.json(product, { status: 201 });
+}
+```
+
+## Response Codes
+
+- `200` - Success (GET, PUT)
+- `201` - Created (POST)
+- `204` - No Content (DELETE)
+- `400` - Validation Error
+- `404` - Not Found
+- `500` - Server Error
+
+## Validation
+
+ALWAYS validate input with Zod schemas from entities:
+
+```typescript
+const validated = schema.safeParse(input);
+
+if (!validated.success) {
+  return NextResponse.json(
+    { error: 'Validation failed', details: validated.error.issues },
+    { status: 400 }
+  );
+}
+```

@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CompLab - Computer Electronics Store & Repair
 
-## Getting Started
+Веб-приложение для продажи и ремонта компьютерной электроники.
 
-First, run the development server:
+## 🚀 Технологический стек
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Framework:** [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
+- **Language:** TypeScript
+- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
+- **UI Components:** [shadcn/ui](https://ui.shadcn.com/)
+- **State Management:** [Zustand](https://zustand-demo.pmnd.rs/)
+- **Validation:** [Zod](https://zod.dev/)
+- **Database ORM:** [Prisma](https://www.prisma.io/) (подготовлено)
+
+## 📁 Структура проекта
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/                # REST API Routes (переиспользуют handlers из entities)
+│   ├── (routes)/           # Группировка page routes
+│   ├── layout.tsx          # Корневой layout
+│   └── globals.css         # Глобальные стили
+├── components/             # Общие UI компоненты
+│   ├── layout/             # Header, Footer
+│   └── ui/                 # shadcn/ui компоненты
+├── entities/               # Бизнес-сущности (Entity-Based Architecture)
+│   ├── [entity]/
+│   │   ├── api/            # API handlers (бизнес-логика)
+│   │   ├── model/          # Schemas, Repository, Store
+│   │   └── ui/             # UI компоненты сущности
+├── shared/                 # Переиспользуемые базовые слои
+│   ├── database/           # Database connection & types
+│   ├── repository/         # Base repository class
+│   └── lib/                # Утилиты (zod-helpers, etc.)
+└── lib/                    # Общие утилиты (cn, etc.)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🏃 Быстрый старт
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Установка зависимостей
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Запуск в режиме разработки
+npm run dev
 
-## Learn More
+# Сборка для продакшена
+npm run build
 
-To learn more about Next.js, take a look at the following resources:
+# Запуск продакшен сборки
+npm start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Откройте [http://localhost:3000](http://localhost:3000) в браузере.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📚 Документация
 
-## Deploy on Vercel
+Подробная документация по архитектуре и руководства:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [🏗️ Архитектура](./docs/ARCHITECTURE.md) - Структура проекта, API Routes, принципы
+- [📦 Entities](./docs/ENTITIES.md) - Работа с бизнес-сущностями
+- [🗃️ Repository Pattern](./docs/REPOSITORY.md) - Паттерн репозитория, Prisma
+- [⚡ Cache Components](./docs/CACHE_COMPONENTS.md) - Data fetching, caching, Suspense
+- [✅ Validation (Zod)](./docs/VALIDATION.md) - Валидация данных
+- [🎨 Styling](./docs/STYLING.md) - Правила стилизации, shadcn/ui компоненты
+- [📝 Code Style](./docs/CODE_STYLE.md) - Соглашения по коду
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🤖 Cursor Rules
+
+Проект содержит умные правила для Cursor AI (`.cursor/rules/`):
+
+| Файл | Применяется к |
+|------|---------------|
+| `complab.mdc` | Все файлы (общие правила) |
+| `entities.mdc` | `src/entities/**/*` |
+| `pages.mdc` | `src/app/**/page.tsx`, layouts |
+| `components.mdc` | `src/components/**/*`, UI |
+| `api-routes.mdc` | `src/app/api/**/*` |
+| `prisma.mdc` | Prisma и репозитории |
+
+Правила автоматически направляют AI на документацию проекта.
+
+## 🎯 Основные возможности
+
+- **Каталог товаров** - Категории, фильтрация, поиск, карточки товаров
+- **Корзина и оформление** - Zustand store, checkout flow
+- **Личный кабинет** - История заказов, отслеживание статуса
+- **Ремонт техники** - Услуги, заявки на ремонт
+- **Промо-баннеры** - Hero carousel, промо-блоки
+
+## 📄 Лицензия
+
+Проприетарный проект CompLab.
